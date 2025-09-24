@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Earthquakes 1925–2025 (M ≥ 7) — interactive</title>
+<!-- D3 + topojson from CDN -->
+<script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+<script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
+
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:#0f1724;
+    --accent:#ff6b3d;
+    --ocean:#cfeefd; /* light blue ocean */
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,Helvetica;background:var(--bg);color:#fff}
+  .wrap{display:flex;flex-direction:column;height:100vh}
+  header{padding:12px 18px;background:linear-gradient(90deg,#071226,#0b1220);display:flex;align-items:center;gap:12px}
+  header h1{margin:0;font-size:18px}
+  #vis{flex:1;display:flex;align-items:center;justify-content:center;padding:12px;position:relative}
+  svg#map{max-width:100%;height:auto;display:block;background:var(--ocean)}
+  /* Controls bottom */
+  .controls{
+    display:flex;align-items:center;gap:12px;padding:10px 14px;background:linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.06));
+  }
+  .label{min-width:130px;font-size:14px}
+  input[type=range]{flex:1}
+  button{background:var(--panel);border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;color:#fff;cursor:pointer}
+  button:active{transform:translateY(1px)}
+  .tooltip{
+    position: absolute;
+    pointer-events: none;
+    background: rgba(12,12,12,0.95);
+    color:#fff;padding:8px 10px;border-radius:6px;font-size:13px;border:1px solid rgba(255,255,255,0.06);
+    display:none;white-space:nowrap;z-index:50;
+    transform:translate(-50%,-120%);
+  }
+  footer{font-size:12px;color:#cfd8e3;padding:8px 12px;background:linear-gradient(90deg,#07122611,#0b122011)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Earthquakes 1925–2025 (M ≥ 7)</h1>
+    <div style="opacity:0.85;font-size:13px">Data: local file <strong>earthquakes1925-2025.json</strong> (USGS). Move slider or Play.</div>
+  </header>
+
+  <div id="vis">
+    <svg id="map" width="1100" height="600" viewBox="0 0 1100 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="tooltip" class="tooltip"></div>
+  </div>
+
+  <div class="controls">
+    <div class="label">Year: <strong id="yearLabel">1925</strong></div>
+    <div style="position:relative;flex:1;margin:0 10px;">
+      <input id="yearSlider" type="range" min="1925" max="2025" value="1925" step="1">
+    </div>
+    <button id="playBtn" aria-pressed="false">Play ▶</button>
+    <div style="min-width:220px;font-size:13px;color:#dbe9ff;opacity:0.85">
+      Circles: warm color, 90% opacity; size ∝ magnitude.
+    </div>
+  </div>
+
+  <footer>
+    Save the USGS GeoJSON file as <strong>earthquakes1925-2025.json</strong> in the same folder as this HTML file.
+  </footer>
+</div>
+
+<script>
+(async () => {
+  const svg = d3.select("#map");
+  const width = +svg.attr("width");
+  const height = +svg.attr("height");
+
+  // Layers
+  const g = svg.append("g");
+  const landLayer = g.append("g").attr("id","land");
+  const quakeLayer = g.append("g").attr("id","quakes");
+
+  // Projection
+  const projection = d3.geoNaturalEarth1()
+    .translate([width/2, height/2])
+    .scale(width / 6);
+
+  const path = d3.geoPath(projection);
+
+  // Tooltip
+  const tooltip = d3.select("#tooltip");
+
+  // Load world map
+  const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
+  const countries = topojson.feature(world, world.objects.countries);
+
+  landLayer.selectAll("path")
+    .data(countries.features)
+    .enter().append("path")
+      .attr("d", path)
+      .attr("fill", "white")
+      .attr("stroke", "#333")
+      .attr("stroke-width", 0.5);
+
+  // Load earthquake data
+  const quakeData = await fetch("earthquakes1925-2025.json").then(r => r.json());
+
+  const quakes = quakeData.features.map(f => {
+    const [lon, lat, depth] = f.geometry.coordinates;
+    const props = f.properties;
+    const date = new Date(props.time || props.origintime);
+    return {
+      id: f.id,
+      lon, lat,
+      mag: +props.mag,
+      place: props.place,
+      timeISO: date.toISOString(),
+      year: date.getUTCFullYear()
+    };
+  }).filter(d => d.year >= 1925 && d.year <= 2025);
+
+  const byYear = d3.group(quakes, d => d.year);
+
+  // Scales
+  const rScale = d3.scaleSqrt()
+    .domain([6.5, 9.5])
+    .range([3, 28]);
+
+  const quakeColor = "rgba(255,100,30,0.9)";
+
+  function drawYear(year) {
+    const list = byYear.get(+year) || [];
+
+    const circles = quakeLayer.selectAll("circle")
+      .data(list, d => d.id);
+
+    circles.exit().remove();
+
+    circles
+      .attr("cx", d => projection([d.lon, d.lat])[0])
+      .attr("cy", d => projection([d.lon, d.lat])[1])
+      .attr("r", d => rScale(d.mag));
+
+    circles.enter().append("circle")
+      .attr("cx", d => projection([d.lon, d.lat])[0])
+      .attr("cy", d => projection([d.lon, d.lat])[1])
+      .attr("r", 0)
+      .attr("fill", quakeColor)
+      .attr("stroke", "rgba(0,0,0,0.2)")
+      .attr("stroke-width", 0.5)
+      .on("mouseenter", (e,d) => {
+        tooltip.style("display","block")
+          .html(`<strong>${d.place}</strong><br>Mag ${d.mag}<br>${d.timeISO}`);
+      })
+      .on("mousemove", (e) => {
+        tooltip.style("left",(e.pageX+10)+"px")
+               .style("top",(e.pageY-20)+"px");
+      })
+      .on("mouseleave", () => tooltip.style("display","none"))
+      .transition().duration(300)
+      .attr("r", d => rScale(d.mag));
+  }
+
+  // Slider + play
+  const slider = d3.select("#yearSlider");
+  const yearLabel = d3.select("#yearLabel");
+  let currentYear = +slider.node().value;
+  yearLabel.text(currentYear);
+  drawYear(currentYear);
+
+  slider.on("input", function() {
+    currentYear = +this.value;
+    yearLabel.text(currentYear);
+    drawYear(currentYear);
+  });
+
+  let playing = false;
+  let timer = null;
+  const playBtn = d3.select("#playBtn");
+  playBtn.on("click", () => {
+    if (!playing) {
+      playing = true;
+      playBtn.text("Pause ⏸");
+      timer = setInterval(() => {
+        currentYear++;
+        if (currentYear > +slider.attr("max")) currentYear = +slider.attr("min");
+        slider.property("value", currentYear);
+        yearLabel.text(currentYear);
+        drawYear(currentYear);
+      }, 600);
+    } else {
+      playing = false;
+      playBtn.text("Play ▶");
+      clearInterval(timer);
+    }
+  });
+})();
+</script>
+</body>
+</html>
