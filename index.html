@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>World Earthquakes over 7.0 Magnitud in 100 years, 1925-2025.</title>
+<title>World Earthquakes of Magnitude 7.0+ in 100 years, 1925-2025.</title>
 <!-- D3 + topojson from CDN -->
 <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
 <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
@@ -18,10 +18,10 @@
   }
   html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,Helvetica;background:linear-gradient(180deg,#06224a 0%, #2a0b4a 100%);color:#fff}
   .wrap{display:flex;flex-direction:column;height:100vh}
-  header{padding:12px 18px;background:linear-gradient(90deg,#071226,#0b1220);display:flex;align-items:center;gap:12px}
+  header{padding:8px 12px;background:linear-gradient(90deg,#071226,#0b1220);display:flex;align-items:center;gap:12px;border-radius:8px;margin:8px}
   header h1{margin:0 auto;font-size:18px;text-align:center}
-  #vis{flex:1;display:flex;align-items:stretch;justify-content:center;padding:12px;position:relative;gap:12px;padding-left:352px}
-  .sidebar{position:absolute;left:12px;top:12px;bottom:12px;width:320px;
+  #vis{flex:1;display:grid;grid-template-columns:320px 1fr;gap:8px;padding:8px;position:relative;height:calc(100vh - 60px)}
+  .sidebar{position:static;width:auto;height:calc(100vh - 60px);max-height:calc(100vh - 60px);
     background: linear-gradient(180deg, rgba(6,34,74,0.45) 0%, rgba(42,11,74,0.45) 100%);
     border:1px solid rgba(255,255,255,0.18);
     border-radius:12px;color:#e7f0ff;z-index:10;display:flex;flex-direction:column;
@@ -30,12 +30,117 @@
     -webkit-backdrop-filter: blur(10px);
   }
   .sidebar header{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.2);font-size:14px}
-  .sidebar .content{flex:1 1 auto;overflow:auto;padding:10px 12px}
+  /* Consolidated scrollbar utility class */
+  .custom-scrollbar { overflow-y: scroll; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.4) rgba(255,255,255,0.1); }
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.4); border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.6); }
+  
+  .sidebar .content{flex:1 1 0;padding:10px 12px;min-height:0;height:400px}
+  .sidebar .content > *{flex-shrink:0}
+  .sidebar .content .sidebar-section{flex-shrink:0}
+  .sidebar .content .earthquake-detail{flex-shrink:0}
+  .earthquake-detail{padding:16px;background:rgba(255,255,255,0.05);border-radius:8px;margin-top:8px}
+  
+  /* Utility classes for common inline styles */
+  .flex-between{display:flex;align-items:center;justify-content:space-between}
+  .year-input{width:70px;text-align:center}
+  .hidden{display:none}
+  .histogram-container{position:relative;height:30px;margin:0 10px 5px 10px}
+  .map-container{position:relative;width:100%;height:100%}
+  .info-section{margin-top:20px;padding:10px;background:rgba(255,255,255,0.05);border-radius:4px}
+  .info-section-large{margin-top:15px;padding:15px;background:rgba(255,255,255,0.05);border-radius:6px}
+  .text-left{text-align:left;margin:10px 0}
+  .list-left{margin:10px 0;padding-left:20px}
+  .welcome-header{margin-bottom:20px;padding:15px;background:rgba(255,255,255,0.05);border-radius:6px;text-align:center}
+  .welcome-header h3{margin:0 0 8px 0;color:#fff;font-size:16px;font-weight:600}
+  .welcome-header p{margin:0;color:#e7f0ff;font-size:14px;opacity:0.9}
+  .visualization-legend{margin-bottom:20px;padding:15px;background:rgba(255,255,255,0.05);border-radius:6px}
+  .visualization-legend h3{margin:0 0 15px 0;color:#fff;font-size:16px;font-weight:600;text-align:center}
+  .visualization-legend h4{margin:0 0 8px 0;color:#fff;font-size:14px;font-weight:600;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:4px}
+  .visualization-legend .legend-section{margin-bottom:15px}
+  .visualization-legend .legend-section:last-child{margin-bottom:0}
+  .visualization-legend .legend-item{margin-bottom:6px;display:flex;align-items:flex-start;gap:8px}
+  .visualization-legend .legend-item:last-child{margin-bottom:0}
+  .visualization-legend .legend-circle{flex-shrink:0;border-radius:50%;border:1px solid rgba(255,255,255,0.3);margin-top:2px}
+  .visualization-legend .legend-text{color:#e7f0ff;font-size:12px;line-height:1.4}
+  .visualization-legend .legend-text strong{color:#fff;font-weight:600}
+  .earthquake-detail h3{margin:0 0 12px 0;color:#fff;font-size:16px;font-weight:600}
+  .detail-item{margin-bottom:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1);font-size:13px;color:#e7f0ff}
+  .detail-item:last-child{border-bottom:none;margin-bottom:0}
+  .detail-item strong{color:#fff;font-weight:600}
+  .detail-actions{margin-top:12px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1)}
+  .clear-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#e7f0ff;padding:6px 12px;cursor:pointer;font-size:12px;transition:all 120ms ease}
+  .clear-btn:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3)}
+  .welcome-message{padding:16px;text-align:center;color:#e7f0ff}
+  .welcome-message h3{margin:0 0 8px 0;color:#fff;font-size:16px}
+  .welcome-message p{margin:0;font-size:13px;opacity:0.8}
   .sidebar .item{padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px}
   .sidebar .item:last-child{border-bottom:none}
-  svg#map{max-width:100%;height:auto;display:block;background:linear-gradient(180deg, var(--ocean) 0%, #bfc4f2 100%)}
+  .sidebar-section{padding:12px;border-top:1px solid rgba(255,255,255,0.1);margin-top:8px}
+  .sidebar-section h3{margin:0 0 12px 0;font-size:14px;color:#e7f0ff;font-weight:600}
+  .filter-group{margin-bottom:12px}
+  .filter-group label{display:block;font-size:12px;color:#e7f0ff;margin-bottom:4px;font-weight:500}
+  .filter-group select, .filter-group input{width:100%;margin-bottom:6px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);padding:6px 8px;border-radius:4px;color:#e7f0ff;font-size:12px}
+  .magnitude-range{margin-bottom:6px}
+  .range-labels{display:flex;justify-content:space-between;margin-bottom:8px;font-size:11px;color:#e7f0ff}
+  .range-inputs{display:flex;gap:8px;align-items:center}
+  .range-inputs input[type="range"]{flex:1;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;outline:none;cursor:pointer}
+  .range-inputs input[type="range"]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;background:#e7f0ff;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,0.3)}
+  .range-inputs input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#e7f0ff;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,0.3);border:none}
+  .filter-group select:focus, .filter-group input:focus{outline:none;border-color:rgba(255,255,255,0.4);background:rgba(255,255,255,0.15)}
+  .filter-group button{width:100%;padding:6px 8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#e7f0ff;cursor:pointer;font-size:12px;transition:all 120ms ease}
+  .filter-group button:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3)}
+  #sliderWrap{margin-top:4px}
+  #sliderWrap input[type="range"]{width:100%;margin:0}
+  .active-filters{margin-top:12px;padding:8px;background:rgba(255,255,255,0.05);border-radius:4px;font-size:11px;color:#e7f0ff}
+  .active-filters div{margin-bottom:4px}
+  .active-filters div:last-child{margin-bottom:0}
+  .view-controls{margin-top:12px;padding:8px;border-top:1px solid rgba(255,255,255,0.1)}
+  .view-controls h3{margin:0 0 8px 0;font-size:12px;color:#e7f0ff;font-weight:600}
+  .view-buttons{display:flex;gap:6px}
+  .view-btn{flex:1;padding:6px 8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#e7f0ff;cursor:pointer;font-size:11px;transition:all 120ms ease}
+  .view-btn:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3)}
+  .view-btn.active{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.4);color:#fff}
+  .summary-overlay{position:absolute;top:12px;left:12px;z-index:20;pointer-events:none}
+  .summary-toggle{background:rgba(15,23,36,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;justify-content:flex-start;align-items:center;font-size:13px;font-weight:600;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all 200ms ease;pointer-events:auto;min-width:80px;gap:8px}
+  .summary-toggle:hover{background:rgba(15,23,36,0.95);box-shadow:0 6px 16px rgba(0,0,0,0.4)}
+  .summary-section{padding:12px;background:rgba(15,23,36,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 4px 12px rgba(0,0,0,0.3);min-width:200px;margin-top:4px}
+  .summary-stats{display:flex;flex-direction:column;gap:6px}
+  .stat-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1)}
+  .stat-item:last-child{border-bottom:none}
+  .stat-label{font-size:11px;color:#e7f0ff;opacity:0.8}
+  .stat-value{font-size:12px;color:#fff;font-weight:600}
+  .zoom-overlay{position:absolute;bottom:12px;right:12px;z-index:20;pointer-events:none}
+  .zoom-overlay .zoom-controls{display:flex;gap:6px;align-items:center;background:rgba(15,23,36,0.9);padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+  .legend-overlay{position:absolute;top:12px;right:12px;z-index:20;pointer-events:none}
+  .legend-toggle{background:rgba(15,23,36,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;justify-content:flex-start;align-items:center;font-size:13px;font-weight:600;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all 200ms ease;pointer-events:auto;min-width:80px;gap:8px}
+  .legend-toggle:hover{background:rgba(15,23,36,0.95);box-shadow:0 6px 16px rgba(0,0,0,0.4)}
+  .toggle-icon{transition:transform 200ms ease;font-size:10px}
+  .legend-toggle.expanded .toggle-icon{transform:rotate(180deg)}
+  .legend-section{padding:12px;background:rgba(15,23,36,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 4px 12px rgba(0,0,0,0.3);min-width:180px;margin-top:4px}
+  .legend-section h3{margin:0 0 12px 0;font-size:14px;color:#fff;font-weight:600}
+  .legend-item{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;pointer-events:auto;cursor:pointer;padding:4px;border-radius:4px;transition:all 200ms ease}
+  .legend-item:hover{background:rgba(255,255,255,0.1);transform:translateX(2px)}
+  .legend-item:last-child{margin-bottom:0}
+  .legend-checkbox{width:16px;height:16px;margin-right:4px;cursor:pointer;accent-color:rgba(255,255,255,0.8);flex-shrink:0}
+  .legend-circle{flex-shrink:0;border-radius:50%;border:1px solid rgba(255,255,255,0.2);transition:all 200ms ease}
+  .legend-item:hover .legend-circle{transform:scale(1.1);box-shadow:0 0 8px rgba(255,255,255,0.3)}
+  .legend-text{color:#e7f0ff;line-height:1.3;transition:all 200ms ease;flex:1}
+  .legend-item:hover .legend-text{color:#fff}
+  .legend-magnitude{font-weight:600;color:#fff;transition:all 200ms ease}
+  .legend-item:hover .legend-magnitude{color:#ffd54a}
+  .legend-item.selected{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3)}
+  .legend-item.unselected{opacity:0.4}
+  #map-container{width:100%;height:100%;position:relative}
+  svg#map{width:100%;height:100%;display:block;background:linear-gradient(180deg, var(--ocean) 0%, #bfc4f2 100%);min-height:500px}
   #land .country{transition:fill 120ms ease}
   #land .country:hover{fill:#e7e3da}
+  .earthquake-highlighted{opacity:1 !important;transition:all 300ms ease}
+  .earthquake-dimmed{opacity:0.3 !important;transition:all 300ms ease}
+  .earthquake-visible{opacity:1 !important;transition:all 300ms ease}
+  .earthquake-hidden{opacity:0 !important;transition:all 300ms ease}
   /* Controls bottom */
   .controls{
     display:flex;align-items:center;gap:12px;padding:10px 14px;background:linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.06));
@@ -48,19 +153,20 @@
   input[type=range]::-moz-range-track{height:4px;background:rgba(255,255,255,0.25);border-radius:2px}
   input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--pink);border:2px solid #fff}
   /* Slider wrap wider and decade tick labels */
-  #sliderWrap{position:relative;flex:1 1 100%;margin:0 10px;min-width:900px;max-width:100%}
+  #sliderWrap{position:relative;flex:1 1 100%;margin:0 10px;min-width:200px;max-width:100%}
   .tick-labels{position:relative;height:20px;margin-bottom:8px;font-size:12px;color:#cfd8e3;opacity:0.9;padding-right:16px}
-  .tick-labels .tick{position:absolute;top:0;transform:translateX(-50%);text-align:center;white-space:nowrap;z-index:1}
+  .tick-labels .tick{position:absolute;top:5px;transform:translateX(-50%);text-align:center;white-space:nowrap;z-index:1}
   .tick-labels .tick::before{content:"";position:absolute;top:-6px;left:50%;width:1px;height:6px;background:#9db7d1;opacity:0.7}
   .tick-labels .tick.first{transform:none}
   .tick-labels .tick.first::before{left:0}
   .tick-labels .tick.last{transform:translateX(-100%)}
   .tick-labels .tick.last::before{left:100%}
-  .tick-labels .year-marker{position:absolute;top:-18px;transform:translateX(-50%);color:#fff;font-weight:600;z-index:2;pointer-events:none}
-  /* Vertical guide from slider up to the dynamic year */
-  #yearGuide{position:absolute;top:2px;bottom:-2px;width:1px;background:#9db7d1;opacity:0.7;z-index:-1;pointer-events:none;transform:translateX(-50%)}
   button{background:var(--panel);border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;color:#fff;cursor:pointer}
   button:active{transform:translateY(1px)}
+  .zoom-overlay .zoom-controls button{width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;cursor:pointer;transition:all 120ms ease;pointer-events:auto}
+  .zoom-overlay .zoom-controls button:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3)}
+  .zoom-overlay .zoom-controls button:disabled{opacity:0.4;cursor:not-allowed}
+  .zoom-overlay .zoom-controls button:disabled:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2)}
   select, input[type=number]{background:var(--panel);border:1px solid rgba(255,255,255,0.06);padding:6px 8px;border-radius:8px;color:#fff}
   .tooltip{
     position: absolute;
@@ -68,53 +174,231 @@
     background: rgba(12,12,12,0.95);
     color:#fff;padding:8px 10px;border-radius:6px;font-size:13px;border:1px solid rgba(255,255,255,0.06);
     display:none;white-space:nowrap;z-index:50;
-    transform:translate(-50%,-120%);
   }
-  footer{font-size:12px;color:#cfd8e3;padding:8px 12px;background:linear-gradient(90deg,#07122611,#0b122011)}
+  footer{font-size:11px;color:#cfd8e3;padding:4px 8px;background:linear-gradient(90deg,#07122611,#0b122011)}
+  
+  @media (max-width: 1024px) {
+    #vis {
+      grid-template-columns: 1fr; /* A single flexible column */
+      height: auto;
+    }
+    .sidebar {
+      height: auto; /* Allow sidebar to shrink */
+      max-height: 40vh; /* Prevent it from taking too much space */
+    }
+    #map-container {
+      height: 50vh; /* Ensure map has enough space */
+    }
+    .summary-section, .legend-section {
+      display: none;
+    }
+    .summary-toggle.expanded + .summary-section,
+    .legend-toggle.expanded + .legend-section {
+      display: block; /* Ensure toggling still works */
+    }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>World Earthquake, from 7.0 Magnitude, 1925-2025.</h1>
+    <h1>Worldwide Earthquakes of Magnitude 7.0+</h1>
     <div style="opacity:0.85;font-size:13px">Data: local file <strong>earthquakes1925-2025.json</strong> (USGS). Move slider or Play.</div>
   </header>
 
   <div id="vis">
-    <aside class="sidebar">
-      <header>
-        <div>Earthquakes in: <strong id="sidebarCountry">None</strong></div>
-      </header>
-      <div id="sidebarList" class="content"></div>
+    <aside class="sidebar custom-scrollbar">
+      <div id="sidebarList" class="content custom-scrollbar">
+        <div class="welcome-header">
+          <h3>Welcome to the Earthquake Map</h3>
+          <p>Click on any earthquake circle to view detailed information.</p>
+        </div>
+        
+        <div class="visualization-legend">
+          <h3>How to Read This Map</h3>
+          
+          <div class="legend-section">
+            <h4>Earthquake Circles</h4>
+            <div class="legend-item">
+              <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ffd54a;"></div>
+              <div class="legend-text">
+                <strong>Size:</strong> Larger circles = higher magnitude<br>
+                <strong>Color:</strong> Yellow (7.0-7.4) → Orange (7.5-7.9) → Red (8.0+)
+              </div>
+            </div>
+          </div>
+          
+          <div class="legend-section">
+            <h4>Temporal Opacity (Cumulative View)</h4>
+            <div class="legend-item">
+              <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 0.2;"></div>
+              <div class="legend-text">
+                <strong>Older earthquakes (1925-1950):</strong> Very transparent
+              </div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 0.6;"></div>
+              <div class="legend-text">
+                <strong>Middle years (1950-2000):</strong> Semi-transparent
+              </div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 1.0;"></div>
+              <div class="legend-text">
+                <strong>Recent earthquakes (2000-2025):</strong> Fully opaque
+              </div>
+            </div>
+          </div>
+          
+          <div class="legend-section">
+            <h4>View Modes</h4>
+            <div class="legend-item">
+              <div class="legend-text">
+                <strong>Cumulative View:</strong> Shows all earthquakes with temporal opacity
+              </div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-text">
+                <strong>Single Year View:</strong> Shows only earthquakes from selected year
+              </div>
+            </div>
+          </div>
+          
+          <div class="legend-section">
+            <h4>Controls</h4>
+            <div class="legend-item">
+              <div class="legend-text">
+                <strong>Year Slider:</strong> Navigate through time<br>
+                <strong>Play Button:</strong> Animate through years<br>
+                <strong>Magnitude Checkboxes:</strong> Filter by earthquake size<br>
+                <strong>Country Filter:</strong> Focus on specific regions
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="view-controls">
+          <h3>View Mode</h3>
+          <div class="view-buttons">
+            <button id="defaultViewBtn" class="view-btn active">Cumulative View</button>
+            <button id="animationViewBtn" class="view-btn">Single Year View</button>
+          </div>
+        </div>
+        
+        <div class="sidebar-section">
+          <h3>Year Controls</h3>
+          
+          <div class="filter-group">
+            <div class="label flex-between">
+              <span>Year: <strong id="yearLabel">1925</strong></span>
+              <input id="specificYearInput" type="number" min="1925" max="2025" value="1925" class="year-input">
+            </div>
+            <div id="sliderWrap">
+              <div id="yearTickLabels" class="tick-labels"></div>
+              <div id="yearGuide" class="hidden"></div>
+              <div id="yearHistogram" class="histogram-container"></div>
+              <input id="yearSlider" type="range" min="1925" max="2025" value="1925" step="1" list="yearDatalist">
+              <datalist id="yearDatalist"></datalist>
+            </div>
+          </div>
+          
+          <div class="filter-group">
+            <label for="speedControl">Animation Speed:</label>
+            <select id="speedControl">
+              <option value="1000">Slow (0.5x)</option>
+              <option value="500" selected>Normal (1x)</option>
+              <option value="250">Fast (2x)</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <button id="playBtn" aria-pressed="false">Play ▶</button>
+          </div>
+        </div>
+        
+        <div class="sidebar-section">
+          <h3>Filters</h3>
+          <div class="filter-group">
+            <label>Country Filter:</label>
+            <select id="countrySelect"><option value="">All Countries</option></select>
+          </div>
+          
+          <div class="filter-group">
+            <label>Magnitude Range:</label>
+            <div class="magnitude-range">
+              <div class="range-labels">
+                <span id="minMagLabel">7.0</span>
+                <span id="maxMagLabel">9.5</span>
+              </div>
+              <div class="range-inputs">
+                <input type="range" id="minMagSlider" min="7.0" max="9.5" step="0.1" value="7.0">
+                <input type="range" id="maxMagSlider" min="7.0" max="9.5" step="0.1" value="9.5">
+              </div>
+            </div>
+          </div>
+          
+          <div class="filter-group">
+            <button id="clearFiltersBtn">Clear All Filters</button>
+          </div>
+          
+          <div class="active-filters">
+            <div>Active Country: <strong id="activeCountryText">None</strong></div>
+            <div>Active Year: <strong id="activeYearText">None</strong></div>
+            <div>Magnitude Range: <strong id="activeMagText">7.0 - 9.5</strong></div>
+          </div>
+        </div>
+      </div>
+      
     </aside>
-    <svg id="map" width="1100" height="600" viewBox="0 0 1100 600" preserveAspectRatio="xMidYMid meet"></svg>
-    <div id="tooltip" class="tooltip"></div>
+    <div id="map-container" class="map-container">
+      <svg id="map" viewBox="0 0 1100 600" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="tooltip" class="tooltip"></div>
+      <div class="zoom-overlay">
+        <div class="zoom-controls">
+          <button id="zoomOutBtn" title="Zoom Out">−</button>
+          <button id="resetZoomBtn" title="Reset Zoom">⌂</button>
+          <button id="zoomInBtn" title="Zoom In">+</button>
+        </div>
+      </div>
+      
+      <div class="summary-overlay">
+        <div class="summary-toggle" id="summaryToggle" title="Toggle Summary Panel">
+          <span>Summary</span>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="summary-section" id="summarySection">
+          <div class="summary-stats">
+            <div class="stat-item">
+              <div class="stat-label">Total Earthquakes:</div>
+              <div class="stat-value" id="totalEarthquakes">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Largest Magnitude:</div>
+              <div class="stat-value" id="largestMagnitude">-</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Most Active Country:</div>
+              <div class="stat-value" id="mostActiveCountry">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="legend-overlay">
+        <div class="legend-toggle" id="legendToggle" title="Toggle Magnitude Legend">
+          <span>Magnitude Legend</span>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="legend-section" id="legendSection">
+          <h3>Magnitude Legend</h3>
+          <div id="magnitudeLegend"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="controls">
-    <div class="label">Year: <strong id="yearLabel">1925</strong></div>
-    <div id="sliderWrap">
-      <div id="yearTickLabels" class="tick-labels"></div>
-      <div id="yearGuide" style="display:none"></div>
-      <input id="yearSlider" type="range" min="1925" max="2025" value="1925" step="1" list="yearDatalist">
-      <datalist id="yearDatalist"></datalist>
-    </div>
-    <button id="playBtn" aria-pressed="false">Play ▶</button>
-    <div style="display:flex;gap:10px;align-items:center">
-      <label style="font-size:13px;opacity:0.85">Country:</label>
-      <select id="countrySelect"><option value="">All</option></select>
-      <button id="filterCountryBtn">Only this country</button>
-      <label style="font-size:13px;opacity:0.85;margin-left:12px">Year:</label>
-      <input id="specificYearInput" type="number" min="1925" max="2025" value="1925" style="width:90px">
-      <button id="filterYearBtn">Only this year</button>
-      <button id="clearFiltersBtn">Clear filters</button>
-    <span style="font-size:13px;opacity:0.85;margin-left:12px">Active country: <strong id="activeCountryText">None</strong></span>
-    <span style="font-size:13px;opacity:0.85;">Active year: <strong id="activeYearText">None</strong></span>
-    </div>
-  </div>
 
   <footer>
-    Save the USGS GeoJSON file as <strong>earthquakes1925-2025.json</strong> in the same folder as this HTML file.
+    Data source: U.S. Geological Survey (USGS)
   </footer>
 </div>
 
@@ -124,55 +408,32 @@
   const width = +svg.attr("width");
   const height = +svg.attr("height");
 
-  // Soft edge mask for quake circles (radial fade to transparent)
+  // Simplified SVG definitions for better performance
   const defs = svg.append('defs');
-  defs.append('radialGradient')
-    .attr('id','fadeGrad')
-    .attr('cx','50%').attr('cy','50%').attr('r','50%')
-    .selectAll('stop')
-    .data([
-      {o:0, a:1},
-      {o:0.8, a:0.9},
-      {o:1, a:0.3}
-    ])
-    .enter().append('stop')
-      .attr('offset', d => (d.o*100)+'%')
-      .attr('stop-color', '#ffffff')
-      .attr('stop-opacity', d => d.a);
-  defs.append('mask')
-    .attr('id','softFade')
-    .attr('maskUnits','objectBoundingBox')
-    .attr('maskContentUnits','objectBoundingBox')
-    .append('rect')
-      .attr('x',0).attr('y',0).attr('width',1).attr('height',1)
-      .attr('fill','url(#fadeGrad)');
-  // Glow filter: layered soft glows matching the fill color
-  const glow = defs.append('filter')
-    .attr('id','quakeGlow')
-    .attr('filterUnits','objectBoundingBox')
-    .attr('x','-50%').attr('y','-50%')
-    .attr('width','200%').attr('height','200%');
-  glow.append('feDropShadow')
-    .attr('dx','0').attr('dy','0').attr('stdDeviation','3')
-    .attr('flood-color','currentColor').attr('flood-opacity','0.6');
-  glow.append('feDropShadow')
-    .attr('dx','0').attr('dy','0').attr('stdDeviation','6')
-    .attr('flood-color','currentColor').attr('flood-opacity','0.35');
-  glow.append('feDropShadow')
-    .attr('dx','0').attr('dy','0').attr('stdDeviation','12')
-    .attr('flood-color','currentColor').attr('flood-opacity','0.18');
 
   // Layers
   const g = svg.append("g");
   const landLayer = g.append("g").attr("id","land");
   const quakeLayer = g.append("g").attr("id","quakes");
 
-  // Projection
+  // Projection - centered to show whole world
   const projection = d3.geoNaturalEarth1()
-    .translate([width/2, height/2])
-    .scale(width / 6);
+    .translate([550, 300])  // Center of viewBox (1100/2, 600/2)
+    .scale(250);  // Larger scale to ensure world is visible
 
   const path = d3.geoPath(projection);
+
+  // Zoom behavior
+  const zoom = d3.zoom()
+    .scaleExtent([0.5, 8])
+    .on("zoom", (event) => {
+      const { transform } = event;
+      g.attr("transform", transform);
+      updateZoomButtons(transform.k);
+    });
+
+  // Apply zoom to the SVG
+  svg.call(zoom);
 
   // Tooltip
   const tooltip = d3.select("#tooltip");
@@ -194,12 +455,25 @@
       .on('click', (e, feature) => {
         const name = feature.properties.name || feature.properties.NAME || feature.id || '';
         if (name) {
-          activeCountry = name;
-          d3.select('#countrySelect').property('value', name);
-          d3.select('#activeCountryText').text(name || 'None');
-          highlightSelectedCountry(name);
-          populateSidebarForCountry(name);
-          drawYear(currentYear);
+          if (name === activeCountry) {
+            // Logic from #clearFiltersBtn handler - deselect current country
+            activeCountry = '';
+            activeSpecificYear = null;
+            d3.select('#activeCountryText').text('None');
+            d3.select('#activeYearText').text('None');
+            d3.select('#countrySelect').property('value', '');
+            populateSidebarForCountry('');
+            if (selectedCountryPath) selectedCountryPath.attr('fill','white');
+            drawYear(currentYear);
+          } else {
+            // Existing selection logic - select new country
+            activeCountry = name;
+            d3.select('#countrySelect').property('value', name);
+            d3.select('#activeCountryText').text(name || 'None');
+            highlightSelectedCountry(name);
+            populateSidebarForCountry(name);
+            drawYear(currentYear);
+          }
         }
       });
   // Sidebar is fixed via CSS; no sync needed
@@ -236,6 +510,45 @@
 
   const byYear = d3.group(quakes, d => d.year);
 
+  // Aggregate earthquake data by year for histogram
+  const countsByYear = d3.rollup(quakes, v => v.length, d => d.year);
+
+  // Function to draw year histogram
+  function drawYearHistogram() {
+    const minYear = 1925;
+    const maxYear = 2025;
+    const yearRange = Array.from({length: maxYear - minYear + 1}, (_, i) => minYear + i);
+
+    const maxCount = d3.max(Array.from(countsByYear.values()));
+
+    const container = d3.select('#yearHistogram');
+    const width = container.node().getBoundingClientRect().width;
+    const height = container.node().getBoundingClientRect().height;
+
+    const xScale = d3.scaleBand()
+        .domain(yearRange)
+        .range([0, width])
+        .padding(0.1);
+
+    const yScale = d3.scaleLinear()
+        .domain([0, maxCount])
+        .range([0, height]);
+
+    container.selectAll('div.bar')
+        .data(yearRange)
+        .enter()
+        .append('div')
+        .style('position', 'absolute')
+        .style('bottom', '0px')
+        .style('left', d => `${xScale(d)}px`)
+        .style('width', `${xScale.bandwidth()}px`)
+        .style('height', d => `${yScale(countsByYear.get(d) || 0)}px`)
+        .style('background-color', 'rgba(255, 255, 255, 0.3)');
+  }
+
+  // Call the function after countsByYear is created
+  drawYearHistogram();
+
   // Populate country dropdown
   const countrySet = new Set(quakes.map(d => d.country).filter(Boolean));
   const countrySelect = d3.select('#countrySelect');
@@ -253,16 +566,177 @@
     .range(["#ffd54a", "#ff8a3d", "#ff3b30", "#a334ff"]) // amarillo, naranja, rojo, púrpura
     .clamp(true);
   function getMagColor(mag) {
-    const c = d3.color(quakeColorScale(mag));
-    if (!c) return "#ff8a3d"; // fallback naranja
-    c.opacity = 0.8;
-    return c + '';
+    return quakeColorScale(mag);
+  }
+
+  // Temporal opacity scale: older earthquakes more translucent, newer more vivid
+  const temporalOpacityScale = d3.scaleLinear()
+    .domain([1925, 2025])
+    .range([0.2, 1.0])  // More pronounced difference: very old (0.2) to recent (1.0)
+    .clamp(true);
+  function getTemporalOpacity(year) {
+    return temporalOpacityScale(year);
+  }
+
+  // Create magnitude legend
+  function createMagnitudeLegend() {
+    const legendContainer = d3.select('#magnitudeLegend');
+    legendContainer.html('');
+
+    // Define magnitude ranges for legend
+    const magnitudeRanges = [
+      { min: 7.0, max: 7.5, label: "7.0 - 7.5", description: "Strong" },
+      { min: 7.5, max: 8.0, label: "7.5 - 8.0", description: "Major" },
+      { min: 8.0, max: 8.5, label: "8.0 - 8.5", description: "Great" },
+      { min: 8.5, max: 9.5, label: "8.5+", description: "Great+" }
+    ];
+
+    magnitudeRanges.forEach(range => {
+      const avgMag = (range.min + range.max) / 2;
+      const radius = rScale(avgMag);
+      const color = getMagColor(avgMag);
+      
+      const legendItem = legendContainer.append('div')
+        .attr('class', 'legend-item')
+        .attr('data-min-mag', range.min)
+        .attr('data-max-mag', range.max);
+
+      // Add checkbox
+      legendItem.append('input')
+        .attr('type', 'checkbox')
+        .attr('class', 'legend-checkbox')
+        .attr('checked', true) // All ranges selected by default
+        .on('change', function() {
+          const isChecked = this.checked;
+          const rangeKey = `${range.min}-${range.max}`;
+          
+          if (isChecked) {
+            selectedMagnitudeRanges.add(rangeKey);
+            legendItem.classed('selected', true).classed('unselected', false);
+          } else {
+            selectedMagnitudeRanges.delete(rangeKey);
+            legendItem.classed('selected', false).classed('unselected', true);
+          }
+          
+          updateEarthquakeVisibility();
+        });
+
+      legendItem.append('div')
+        .attr('class', 'legend-circle')
+        .style('width', (radius * 2) + 'px')
+        .style('height', (radius * 2) + 'px')
+        .style('background-color', color)
+        .style('border', `1px solid rgba(255,255,255,0.3)`);
+
+      legendItem.append('div')
+        .attr('class', 'legend-text')
+        .html(`<span class="legend-magnitude">M ${range.label}</span><br>${range.description}`);
+
+      // Initialize as selected
+      legendItem.classed('selected', true);
+      selectedMagnitudeRanges.add(`${range.min}-${range.max}`);
+    });
   }
 
   // Active filters
   let activeCountry = '';
   let activeSpecificYear = null;
   let selectedCountryPath = null;
+  let selectedMagnitudeRanges = new Set(); // Track selected magnitude ranges
+  let minMagFilter = 7.0;
+  let maxMagFilter = 9.5;
+
+  // View mode state
+  let viewMode = 'default'; // 'default' or 'animation'
+  
+  // Controls are now in the sidebar
+
+  // Update earthquake visibility based on selected magnitude ranges
+  function updateEarthquakeVisibility() {
+    const circles = quakeLayer.selectAll("circle");
+    
+    circles.each(function(d) {
+      const circle = d3.select(this);
+      
+      // Check if this earthquake's magnitude is in any selected range
+      let isVisible = false;
+      for (const rangeKey of selectedMagnitudeRanges) {
+        const [min, max] = rangeKey.split('-').map(Number);
+        if (d.mag >= min && d.mag < max) {
+          isVisible = true;
+          break;
+        }
+      }
+      
+      if (isVisible) {
+        circle.classed('earthquake-visible', true);
+        circle.classed('earthquake-hidden', false);
+        // Don't override opacity - let drawYear() handle temporal opacity
+        circle.style('fill', getMagColor(d.mag));
+      } else {
+        circle.classed('earthquake-visible', false);
+        circle.classed('earthquake-hidden', true);
+        circle.style('opacity', 0);
+      }
+    });
+  }
+
+  // Legacy functions for compatibility (now unused but kept for reference)
+  function highlightEarthquakesByMagnitude(minMag, maxMag) {
+    // This function is now replaced by updateEarthquakeVisibility
+  }
+
+  function clearEarthquakeHighlight() {
+    // This function is now replaced by updateEarthquakeVisibility
+  }
+
+  // Zoom state
+  let currentZoom = 1;
+  const minZoom = 0.5;
+  const maxZoom = 8;
+
+  // Update zoom button states
+  function updateZoomButtons(scale) {
+    currentZoom = scale;
+    const zoomOutBtn = d3.select('#zoomOutBtn');
+    const zoomInBtn = d3.select('#zoomInBtn');
+    const resetZoomBtn = d3.select('#resetZoomBtn');
+    
+    zoomOutBtn.property('disabled', scale <= minZoom);
+    zoomInBtn.property('disabled', scale >= maxZoom);
+    resetZoomBtn.property('disabled', Math.abs(scale - 1) < 0.01);
+  }
+
+  // Zoom functions
+  function zoomIn() {
+    const currentTransform = d3.zoomTransform(svg.node());
+    const newScale = Math.min(currentTransform.k * 1.5, maxZoom);
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const transform = d3.zoomIdentity
+      .translate(centerX, centerY)
+      .scale(newScale)
+      .translate(-centerX, -centerY);
+    
+    svg.transition().duration(300).call(zoom.transform, transform);
+  }
+
+  function zoomOut() {
+    const currentTransform = d3.zoomTransform(svg.node());
+    const newScale = Math.max(currentTransform.k / 1.5, minZoom);
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const transform = d3.zoomIdentity
+      .translate(centerX, centerY)
+      .scale(newScale)
+      .translate(-centerX, -centerY);
+    
+    svg.transition().duration(300).call(zoom.transform, transform);
+  }
+
+  function resetZoom() {
+    svg.transition().duration(300).call(zoom.transform, d3.zoomIdentity);
+  }
 
   function highlightSelectedCountry(name) {
     if (selectedCountryPath) {
@@ -277,13 +751,13 @@
   function populateSidebarForCountry(name) {
     const sidebarTitle = d3.select('#sidebarCountry');
     const listEl = d3.select('#sidebarList');
-    sidebarTitle.text(name || 'Ninguno');
+    sidebarTitle.text(name || 'None');
     listEl.html('');
     if (!name) return;
     const items = quakes.filter(q => q.country === name)
       .sort((a,b) => d3.descending(a.year, b.year));
     if (items.length === 0) {
-      listEl.append('div').attr('class','item').text('Sin datos.');
+      listEl.append('div').attr('class','item').text('No data available.');
       return;
     }
     items.forEach(it => {
@@ -292,131 +766,501 @@
     });
   }
 
+  function updateSummaryStats(list) {
+    // Calculate total earthquakes
+    const totalCount = list.length;
+    
+    // Calculate largest magnitude
+    const largestMag = list.length > 0 ? Math.max(...list.map(d => d.mag)) : 0;
+    
+    // Calculate most active country
+    const countryCounts = {};
+    list.forEach(d => {
+      if (d.country && d.country !== 'Ocean') {
+        countryCounts[d.country] = (countryCounts[d.country] || 0) + 1;
+      }
+    });
+    const mostActiveCountry = Object.keys(countryCounts).length > 0 
+      ? Object.keys(countryCounts).reduce((a, b) => countryCounts[a] > countryCounts[b] ? a : b)
+      : 'N/A';
+    
+    // Update the UI
+    d3.select('#totalEarthquakes').text(totalCount);
+    d3.select('#largestMagnitude').text(largestMag > 0 ? largestMag.toFixed(1) : '-');
+    d3.select('#mostActiveCountry').text(mostActiveCountry);
+  }
+
+  // Display earthquake data in sidebar
+  function displayEarthquakeInSidebar(earthquake) {
+    const sidebarContent = d3.select("#sidebarList");
+    
+    // Format the date
+    const date = new Date(earthquake.timeISO);
+    const formattedDate = date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    // Create detailed earthquake information
+    const earthquakeInfo = `
+      <div class="earthquake-detail">
+        <h3>Earthquake Details</h3>
+        <div class="detail-item">
+          <strong>Location:</strong> ${earthquake.place}${earthquake.country ? `, ${earthquake.country}` : ''}
+        </div>
+        <div class="detail-item">
+          <strong>Magnitude:</strong> ${earthquake.mag}
+        </div>
+        <div class="detail-item">
+          <strong>Date & Time:</strong> ${formattedDate}
+        </div>
+        <div class="detail-item">
+          <strong>Coordinates:</strong> ${earthquake.lat.toFixed(4)}°N, ${earthquake.lon.toFixed(4)}°E
+        </div>
+        <div class="detail-item">
+          <strong>Year:</strong> ${earthquake.year}
+        </div>
+        <div class="detail-actions">
+          <button class="clear-btn" id="clearSelectionBtn">Clear Selection</button>
+        </div>
+      </div>
+    `;
+    
+    sidebarContent.html(earthquakeInfo);
+    
+    // Attach event handler using D3
+    d3.select('#clearSelectionBtn').on('click', clearEarthquakeSelection);
+  }
+  
+  // Clear earthquake selection
+  function clearEarthquakeSelection() {
+    const sidebarContent = d3.select("#sidebarList");
+    sidebarContent.html(`
+      <div class="welcome-header">
+        <h3>Welcome to the Earthquake Map</h3>
+        <p>Click on any earthquake circle to view detailed information.</p>
+      </div>
+      
+      <div class="visualization-legend">
+        <h3>How to Read This Map</h3>
+        
+        <div class="legend-section">
+          <h4>Earthquake Circles</h4>
+          <div class="legend-item">
+            <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ffd54a;"></div>
+            <div class="legend-text">
+              <strong>Size:</strong> Larger circles = higher magnitude<br>
+              <strong>Color:</strong> Yellow (7.0-7.4) → Orange (7.5-7.9) → Red (8.0+)
+            </div>
+          </div>
+        </div>
+        
+        <div class="legend-section">
+          <h4>Temporal Opacity (Cumulative View)</h4>
+          <div class="legend-item">
+            <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 0.2;"></div>
+            <div class="legend-text">
+              <strong>Older earthquakes (1925-1950):</strong> Very transparent
+            </div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 0.6;"></div>
+            <div class="legend-text">
+              <strong>Middle years (1950-2000):</strong> Semi-transparent
+            </div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 1.0;"></div>
+            <div class="legend-text">
+              <strong>Recent earthquakes (2000-2025):</strong> Fully opaque
+            </div>
+          </div>
+        </div>
+        
+        <div class="legend-section">
+          <h4>View Modes</h4>
+          <div class="legend-item">
+            <div class="legend-text">
+              <strong>Cumulative View:</strong> Shows all earthquakes with temporal opacity
+            </div>
+          </div>
+          <div class="legend-item">
+            <div class="legend-text">
+              <strong>Single Year View:</strong> Shows only earthquakes from selected year
+            </div>
+          </div>
+        </div>
+        
+        <div class="legend-section">
+          <h4>Controls</h4>
+          <div class="legend-item">
+            <div class="legend-text">
+              <strong>Year Slider:</strong> Navigate through time<br>
+              <strong>Play Button:</strong> Animate through years<br>
+              <strong>Magnitude Checkboxes:</strong> Filter by earthquake size<br>
+              <strong>Country Filter:</strong> Focus on specific regions
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="view-controls">
+        <h3>View Mode</h3>
+        <div class="view-buttons">
+          <button id="defaultViewBtn" class="view-btn active">Cumulative View</button>
+          <button id="animationViewBtn" class="view-btn">Single Year View</button>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <h3>Year Controls</h3>
+        
+        <div class="filter-group">
+          <div class="label flex-between">
+            <span>Year: <strong id="yearLabel">1925</strong></span>
+            <input id="specificYearInput" type="number" min="1925" max="2025" value="1925" class="year-input">
+          </div>
+          <div id="sliderWrap">
+            <div id="yearTickLabels" class="tick-labels"></div>
+            <div id="yearGuide" class="hidden"></div>
+            <div id="yearHistogram" class="histogram-container"></div>
+            <input id="yearSlider" type="range" min="1925" max="2025" value="1925" step="1" list="yearDatalist">
+            <datalist id="yearDatalist"></datalist>
+          </div>
+        </div>
+        
+        <div class="filter-group">
+          <label for="speedControl">Animation Speed:</label>
+          <select id="speedControl">
+            <option value="1000">Slow (0.5x)</option>
+            <option value="500" selected>Normal (1x)</option>
+            <option value="250">Fast (2x)</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <button id="playBtn" aria-pressed="false">Play ▶</button>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <h3>Filters</h3>
+          <div class="filter-group">
+            <label>Country Filter:</label>
+            <select id="countrySelect"><option value="">All Countries</option></select>
+          </div>
+          
+          <div class="filter-group">
+            <label>Magnitude Range:</label>
+            <div class="magnitude-range">
+              <div class="range-labels">
+                <span id="minMagLabel">7.0</span>
+                <span id="maxMagLabel">9.5</span>
+              </div>
+              <div class="range-inputs">
+                <input type="range" id="minMagSlider" min="7.0" max="9.5" step="0.1" value="7.0">
+                <input type="range" id="maxMagSlider" min="7.0" max="9.5" step="0.1" value="9.5">
+              </div>
+            </div>
+          </div>
+          
+          <div class="filter-group">
+            <button id="clearFiltersBtn">Clear All Filters</button>
+          </div>
+          
+          <div class="active-filters">
+            <div>Active Country: <strong id="activeCountryText">None</strong></div>
+            <div>Active Year: <strong id="activeYearText">None</strong></div>
+            <div>Magnitude Range: <strong id="activeMagText">7.0 - 9.5</strong></div>
+          </div>
+      </div>
+    `);
+    
+    // Re-attach event handlers after clearing
+    attachSidebarEventHandlers();
+    
+    // Reset magnitude selections to all selected
+    selectedMagnitudeRanges.clear();
+    const magnitudeRanges = [
+      { min: 7.0, max: 7.5, label: "7.0-7.4", description: "Major" },
+      { min: 7.5, max: 8.0, label: "7.5-7.9", description: "Great" },
+      { min: 8.0, max: 9.0, label: "8.0+", description: "Great (rare)" }
+    ];
+    magnitudeRanges.forEach(range => {
+      selectedMagnitudeRanges.add(`${range.min}-${range.max}`);
+    });
+    
+    // Update legend checkboxes to be checked
+    d3.selectAll('.legend-checkbox').property('checked', true);
+    d3.selectAll('.legend-item').classed('selected', true).classed('unselected', false);
+    
+    // Update earthquake visibility
+    updateEarthquakeVisibility();
+  }
+
+  // Function to attach all sidebar event handlers
+  function attachSidebarEventHandlers() {
+    // Re-initialize year controls
+    slider = d3.select("#yearSlider");
+    yearLabel = d3.select("#yearLabel");
+    
+    // View mode button handlers
+    d3.select('#defaultViewBtn').on('click', function() {
+      viewMode = 'default';
+      d3.select('#defaultViewBtn').classed('active', true);
+      d3.select('#animationViewBtn').classed('active', false);
+      d3.select('#playBtn').property('disabled', true);
+      drawYear(currentYear);
+    });
+
+    d3.select('#animationViewBtn').on('click', function() {
+      viewMode = 'animation';
+      d3.select('#animationViewBtn').classed('active', true);
+      d3.select('#defaultViewBtn').classed('active', false);
+      d3.select('#playBtn').property('disabled', false);
+      drawYear(currentYear);
+    });
+
+    // Year slider handler
+    if (slider.node()) {
+      slider.on("input", function() {
+        currentYear = +this.value;
+        yearLabel.text(currentYear);
+        d3.select('#specificYearInput').property('value', currentYear);
+        drawYear(currentYear);
+      });
+    }
+
+    // Year input handler
+    d3.select('#specificYearInput').on('input', function() {
+      const val = +this.value;
+      if (val >= 1925 && val <= 2025) {
+        activeSpecificYear = val;
+        currentYear = val;
+        yearLabel.text(currentYear);
+        if (slider.node()) {
+          slider.property('value', val);
+        }
+        d3.select('#activeYearText').text(activeSpecificYear ?? 'None');
+        drawYear(currentYear);
+      }
+    });
+
+    // Play button
+    d3.select('#playBtn').on('click', () => {
+      if (!playing) {
+        playing = true;
+        d3.select('#playBtn').text("Pause ⏸");
+        const speed = +d3.select("#speedControl").node().value;
+        timer = setInterval(() => {
+          currentYear++;
+          if (slider.node() && currentYear > +slider.attr("max")) currentYear = +slider.attr("min");
+          if (slider.node()) {
+            slider.property("value", currentYear);
+          }
+          yearLabel.text(currentYear);
+          drawYear(currentYear);
+        }, speed);
+      } else {
+        playing = false;
+        d3.select('#playBtn').text("Play ▶");
+        clearInterval(timer);
+      }
+    });
+
+    // Country filter
+    d3.select('#countrySelect').on('change', () => {
+      activeCountry = d3.select('#countrySelect').property('value') || '';
+      d3.select('#activeCountryText').text(activeCountry || 'None');
+      highlightSelectedCountry(activeCountry);
+      populateSidebarForCountry(activeCountry);
+      drawYear(currentYear);
+    });
+
+    // Magnitude range filters
+    d3.select('#minMagSlider').on('input', function() {
+      minMagFilter = +this.value;
+      d3.select('#minMagLabel').text(minMagFilter.toFixed(1));
+      d3.select('#activeMagText').text(`${minMagFilter.toFixed(1)} - ${maxMagFilter.toFixed(1)}`);
+      drawYear(currentYear);
+    });
+
+    d3.select('#maxMagSlider').on('input', function() {
+      maxMagFilter = +this.value;
+      d3.select('#maxMagLabel').text(maxMagFilter.toFixed(1));
+      d3.select('#activeMagText').text(`${minMagFilter.toFixed(1)} - ${maxMagFilter.toFixed(1)}`);
+      drawYear(currentYear);
+    });
+
+    // Clear filters
+    d3.select('#clearFiltersBtn').on('click', () => {
+      activeCountry = '';
+      activeSpecificYear = null;
+      minMagFilter = 7.0;
+      maxMagFilter = 9.5;
+      d3.select('#activeCountryText').text('None');
+      d3.select('#activeYearText').text('None');
+      d3.select('#activeMagText').text('7.0 - 9.5');
+      d3.select('#countrySelect').property('value', '');
+      d3.select('#specificYearInput').property('value', currentYear);
+      d3.select('#minMagSlider').property('value', 7.0);
+      d3.select('#maxMagSlider').property('value', 9.5);
+      d3.select('#minMagLabel').text('7.0');
+      d3.select('#maxMagLabel').text('9.5');
+      populateSidebarForCountry('');
+      if (selectedCountryPath) selectedCountryPath.attr('fill','white');
+      drawYear(currentYear);
+    });
+  }
+
   function drawYear(year) {
-    // If a country is selected and no specific year filter is active,
-    // show ALL earthquakes for that country across all years.
-    // Otherwise, show the current slider year (and any explicit year filter).
-    const useAllYearsForCountry = !!activeCountry && activeSpecificYear == null;
-    const base = useAllYearsForCountry ? quakes : (byYear.get(+year) || []);
-    let list = base;
+    let list;
+    
+    if (viewMode === 'default') {
+      // Default view: show ALL earthquakes with temporal opacity
+      const useAllYearsForCountry = !!activeCountry && activeSpecificYear == null;
+      const useAllYearsDefault = !activeCountry && activeSpecificYear == null;
+      const base = (useAllYearsForCountry || useAllYearsDefault) ? quakes : (byYear.get(+year) || []);
+      list = base;
+    } else {
+      // Animation view: show only earthquakes for the specific year
+      list = byYear.get(+year) || [];
+    }
+    
     if (activeCountry) {
       list = list.filter(d => d.country === activeCountry);
     }
     if (activeSpecificYear != null) {
       list = list.filter(d => d.year === activeSpecificYear);
     }
+    
+    // Apply magnitude range filter
+    list = list.filter(d => d.mag >= minMagFilter && d.mag <= maxMagFilter);
 
+    // Update summary statistics
+    updateSummaryStats(list);
+
+    // Create circles for all earthquakes in the list using D3 join pattern
     const circles = quakeLayer.selectAll("circle")
-      .data(list, d => d.id);
+      .data(list, d => d.id)
+      .join("circle")
+        .attr("cx", d => projection([d.lon, d.lat])[0])
+        .attr("cy", d => projection([d.lon, d.lat])[1])
+        .attr("r", d => rScale(d.mag))
+        .attr("fill", d => getMagColor(d.mag))
+        .style("opacity", d => viewMode === 'default' ? getTemporalOpacity(d.year) : 1.0);
 
-    circles.exit()
-      .transition().duration(280).ease(d3.easeCubicOut)
-      .attr("r", 0)
-      .style("opacity", 0)
-      .remove();
-
-    circles
-      .transition().duration(420).ease(d3.easeCubicOut)
-      .attr("cx", d => projection([d.lon, d.lat])[0])
-      .attr("cy", d => projection([d.lon, d.lat])[1])
-      .attr("r", d => rScale(d.mag))
-      .attr("fill", d => getMagColor(d.mag))
-      .attr("mask", "url(#softFade)")
-      .attr("stroke", "none")
-      .attr("filter", "url(#quakeGlow)")
-      .attr("color", d => getMagColor(d.mag));
-
-    circles.enter().append("circle")
-      .attr("cx", d => projection([d.lon, d.lat])[0])
-      .attr("cy", d => projection([d.lon, d.lat])[1])
-      .attr("r", 0)
-      .attr("fill", d => getMagColor(d.mag))
-      .attr("mask", "url(#softFade)")
-      .attr("stroke", "none")
-      .attr("filter", "url(#quakeGlow)")
-      .attr("color", d => getMagColor(d.mag))
-      .on("mouseenter", (e,d) => {
+    // Re-attach event handlers to the selection
+    circles.on("mouseenter", (e,d) => {
         tooltip.style("display","block")
           .html(`<strong>${d.place}</strong><br>Mag ${d.mag}<br>${d.timeISO}`);
       })
-      .on("mousemove", (e) => {
-        tooltip.style("left",(e.pageX+10)+"px")
-               .style("top",(e.pageY-20)+"px");
+      .on("mousemove", function(e) {
+        tooltip.style("position", "fixed")
+               .style("left", (e.clientX + 5) + "px")
+               .style("top", (e.clientY + 5) + "px")
+               .style("z-index", "9999");
       })
       .on("mouseleave", () => tooltip.style("display","none"))
-      .transition().duration(420).ease(d3.easeCubicOut)
-      .attr("r", d => rScale(d.mag));
+      .on("click", (e,d) => {
+        displayEarthquakeInSidebar(d);
+      });
   }
 
-  // Slider + play
-  const slider = d3.select("#yearSlider");
-  const yearLabel = d3.select("#yearLabel");
-  let currentYear = +slider.node().value;
-  yearLabel.text(currentYear);
-  drawYear(currentYear);
-  // placeholder for marker update if defined later
-
-  slider.on("input", function() {
-    currentYear = +this.value;
-    yearLabel.text(currentYear);
-    drawYear(currentYear);
-    if (typeof updateYearMarker === 'function') updateYearMarker(currentYear);
-  });
-
-  // Filter controls
-  d3.select('#filterCountryBtn').on('click', () => {
-    activeCountry = d3.select('#countrySelect').property('value') || '';
-    d3.select('#activeCountryText').text(activeCountry || 'None');
-    highlightSelectedCountry(activeCountry);
-    populateSidebarForCountry(activeCountry);
-    drawYear(currentYear);
-  });
-  d3.select('#filterYearBtn').on('click', () => {
-    const val = +d3.select('#specificYearInput').property('value');
-    if (!isNaN(val)) {
-      activeSpecificYear = val;
-      // Sync slider to that year for clarity
-      slider.property('value', val);
-      currentYear = val;
+  // Initialize year controls
+  let currentYear = 1925;
+  let slider, yearLabel;
+  
+  // Initialize zoom button states
+  updateZoomButtons(1);
+  
+  // Create the magnitude legend
+  createMagnitudeLegend();
+  
+  // Initialize year controls after DOM is ready
+  function initializeYearControls() {
+    slider = d3.select("#yearSlider");
+    yearLabel = d3.select("#yearLabel");
+    if (slider.node()) {
+      currentYear = +slider.node().value;
       yearLabel.text(currentYear);
+      drawYear(currentYear);
     }
-    d3.select('#activeYearText').text(activeSpecificYear ?? 'None');
-    drawYear(currentYear);
-    if (typeof updateYearMarker === 'function') updateYearMarker(currentYear);
+  }
+  
+  // Call initialization
+  initializeYearControls();
+
+  // Initialize all event handlers
+  attachSidebarEventHandlers();
+
+  // Zoom button event handlers
+  d3.select('#zoomInBtn').on('click', zoomIn);
+  d3.select('#zoomOutBtn').on('click', zoomOut);
+  d3.select('#resetZoomBtn').on('click', resetZoom);
+
+  // Legend toggle functionality
+  d3.select('#legendToggle').on('click', function() {
+    const legendSection = d3.select('#legendSection');
+    const toggle = d3.select('#legendToggle');
+    const isVisible = legendSection.style('display') !== 'none';
+    
+    if (isVisible) {
+      legendSection.style('display', 'none');
+      toggle.classed('expanded', false);
+    } else {
+      legendSection.style('display', 'block');
+      toggle.classed('expanded', true);
+    }
   });
-  d3.select('#clearFiltersBtn').on('click', () => {
-    activeCountry = '';
-    activeSpecificYear = null;
-    d3.select('#activeCountryText').text('None');
-    d3.select('#activeYearText').text('None');
-    populateSidebarForCountry('');
-    if (selectedCountryPath) selectedCountryPath.attr('fill','white');
+
+  // Summary toggle functionality
+  d3.select('#summaryToggle').on('click', function() {
+    const summarySection = d3.select('#summarySection');
+    const toggle = d3.select('#summaryToggle');
+    const isVisible = summarySection.style('display') !== 'none';
+    
+    if (isVisible) {
+      summarySection.style('display', 'none');
+      toggle.classed('expanded', false);
+    } else {
+      summarySection.style('display', 'block');
+      toggle.classed('expanded', true);
+    }
+  });
+
+  // View mode button handlers
+  d3.select('#defaultViewBtn').on('click', function() {
+    viewMode = 'default';
+    d3.select('#defaultViewBtn').classed('active', true);
+    d3.select('#animationViewBtn').classed('active', false);
+    d3.select('#playBtn').property('disabled', true); // Disable Play button
     drawYear(currentYear);
   });
+
+  d3.select('#animationViewBtn').on('click', function() {
+    viewMode = 'animation';
+    d3.select('#animationViewBtn').classed('active', true);
+    d3.select('#defaultViewBtn').classed('active', false);
+    d3.select('#playBtn').property('disabled', false); // Enable Play button
+    drawYear(currentYear);
+  });
+
+  // Also disable it on initial load
+  d3.select('#playBtn').property('disabled', true);
 
   // Build 5-year tick labels under the slider
   const minYear = +slider.attr("min");
   const maxYear = +slider.attr("max");
   const tickContainer = d3.select("#yearTickLabels");
-  const yearGuide = d3.select('#yearGuide');
   const datalist = d3.select("#yearDatalist");
-  for (let y = minYear; y <= maxYear; y += 5) {
-    const pct = ((y - minYear) / (maxYear - minYear)) * 100;
-    const cls = (y === minYear ? 'tick first' : (y === maxYear ? 'tick last' : 'tick'));
-    tickContainer.append("div")
-      .attr("class", cls)
-      .style("left", (y === maxYear ? '100%' : (y === minYear ? '0%' : pct + '%')))
-      .text(y);
+  // Add datalist options for better slider behavior
+  for (let y = minYear; y <= maxYear; y++) {
     datalist.append("option").attr("value", y);
   }
-  const dynamicMarker = tickContainer.append('div').attr('class','year-marker').style('display','none');
-  function updateYearMarker(y) {
-    if (y % 5 === 0) { dynamicMarker.style('display','none'); yearGuide.style('display','none'); return; }
-    const pct = ((y - minYear) / (maxYear - minYear)) * 100;
-    dynamicMarker.style('display','block').style('left', pct + '%').text(y);
-    yearGuide.style('display','block').style('left', pct + '%');
-  }
-  updateYearMarker(currentYear);
 
   let playing = false;
   let timer = null;
@@ -425,20 +1269,136 @@
     if (!playing) {
       playing = true;
       playBtn.text("Pause ⏸");
+      const speed = +d3.select("#speedControl").node().value;
       timer = setInterval(() => {
         currentYear++;
         if (currentYear > +slider.attr("max")) currentYear = +slider.attr("min");
         slider.property("value", currentYear);
         yearLabel.text(currentYear);
         drawYear(currentYear);
-        if (typeof updateYearMarker === 'function') updateYearMarker(currentYear);
-      }, 500);
+      }, speed);
     } else {
       playing = false;
       playBtn.text("Play ▶");
       clearInterval(timer);
     }
   });
+
+  // Initialize sidebar with welcome message
+  const sidebarContent = d3.select("#sidebarList");
+  sidebarContent.append("div").html(`
+    <div class="welcome-message">
+      <h3>Welcome to the Earthquake Map</h3>
+      <p>Click on any earthquake circle to view detailed information.</p>
+      
+      <div style="margin-top: 20px;">
+        <h4>How to Use:</h4>
+        <ul style="text-align: left; margin: 10px 0;">
+          <li>Click earthquake circles for details</li>
+          <li>Use the year slider to filter by time</li>
+          <li>Click countries to filter by location</li>
+          <li>Use the legend to filter by magnitude</li>
+          <li>Toggle between "Cumulative View" and "Single Year View"</li>
+        </ul>
+      </div>
+      
+      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+        <h4>Data Information:</h4>
+        <p>This map shows earthquakes of magnitude 7.0+ from 1925 to 2025. The data comes from the U.S. Geological Survey (USGS).</p>
+        <p>Each circle represents an earthquake, with size indicating magnitude and color indicating the year of occurrence.</p>
+      </div>
+      
+      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+        <h4>Features:</h4>
+        <ul style="text-align: left; margin: 10px 0;">
+          <li>Interactive earthquake visualization</li>
+          <li>Real-time filtering and searching</li>
+          <li>Detailed earthquake information</li>
+          <li>Country-based analysis</li>
+          <li>Time-based animation</li>
+          <li>Magnitude-based filtering</li>
+          <li>Zoom and pan functionality</li>
+        </ul>
+      </div>
+      
+      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+        <h4>Legend Information:</h4>
+        <p>The magnitude legend shows different earthquake sizes. Hover over legend items to highlight earthquakes of that magnitude on the map.</p>
+        <p>Use the summary panel to see statistics about the current view, including total earthquakes, largest magnitude, and most active country.</p>
+      </div>
+      
+      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+        <h4>Controls:</h4>
+        <ul style="text-align: left; margin: 10px 0;">
+          <li>Year Slider: Navigate through time</li>
+          <li>Play Button: Animate through years</li>
+          <li>Speed Control: Adjust animation speed</li>
+          <li>Country Filter: Select specific countries</li>
+          <li>Year Filter: Filter by specific year</li>
+          <li>Clear Filters: Reset all filters</li>
+        </ul>
+      </div>
+      
+      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+        <h4>Tips:</h4>
+        <ul style="text-align: left; margin: 10px 0;">
+          <li>Use mouse wheel to zoom in/out</li>
+          <li>Click and drag to pan around the map</li>
+          <li>Click earthquake circles for detailed information</li>
+          <li>Use the zoom controls for precise navigation</li>
+          <li>Toggle panels on/off as needed</li>
+        </ul>
+      </div>
+      
+      <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+        <h4>Magnitude Scale:</h4>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+          <li><strong>7.0-7.4:</strong> Major earthquake</li>
+          <li><strong>7.5-7.9:</strong> Great earthquake</li>
+          <li><strong>8.0+:</strong> Great earthquake (rare)</li>
+        </ul>
+      </div>
+      
+      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+        <h4>Interactive Features:</h4>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+          <li>Click any earthquake circle to see detailed information</li>
+          <li>Use the year slider to filter by time period</li>
+          <li>Click countries on the map to filter by location</li>
+          <li>Use the magnitude legend to filter by earthquake size</li>
+          <li>Toggle between "Cumulative View" and "Single Year View"</li>
+        </ul>
+      </div>
+      
+      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+        <h4>Additional Tips:</h4>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+          <li>Use the zoom controls for precise navigation</li>
+          <li>Try the year animation to see temporal patterns</li>
+          <li>Combine filters for specific analysis</li>
+          <li>Hover over circles for quick information</li>
+          <li>Use the clear button to reset all filters</li>
+        </ul>
+      </div>
+      
+      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+        <h4>Data Sources:</h4>
+        <p>This visualization uses earthquake data from the U.S. Geological Survey (USGS) covering the period from 1925 to 2025. Only earthquakes with magnitude 7.0 and above are displayed.</p>
+      </div>
+      
+      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+        <h4>Technical Details:</h4>
+        <p>The map uses D3.js for data visualization and interactive features. The projection is optimized for global earthquake visualization with proper scaling and positioning.</p>
+        <p>All earthquake data is processed in real-time to provide accurate filtering, clustering, and temporal analysis capabilities.</p>
+      </div>
+      
+      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
+        <h4>Performance Notes:</h4>
+        <p>This visualization is optimized for performance with large datasets. The interface includes clustering for better performance when viewing all earthquakes simultaneously.</p>
+        <p>Use the view mode controls to switch between cumulative and single-year views for optimal performance.</p>
+      </div>
+    </div>
+  `);
 })();
 </script>
 </body>
