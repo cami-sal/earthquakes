@@ -4,9 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>World Earthquakes of Magnitude 7.0+ in 100 years, 1925-2025.</title>
-<!-- D3 + topojson from CDN -->
+<!-- Leaflet CSS and JavaScript -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- D3 for data processing and UI controls -->
 <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
-<script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
 
 <style>
   :root{
@@ -40,8 +42,6 @@
   .sidebar .content{flex:1 1 0;padding:10px 12px;min-height:0;height:400px}
   .sidebar .content > *{flex-shrink:0}
   .sidebar .content .sidebar-section{flex-shrink:0}
-  .sidebar .content .earthquake-detail{flex-shrink:0}
-  .earthquake-detail{padding:16px;background:rgba(255,255,255,0.05);border-radius:8px;margin-top:8px}
   
   /* Utility classes for common inline styles */
   .flex-between{display:flex;align-items:center;justify-content:space-between}
@@ -53,9 +53,11 @@
   .info-section-large{margin-top:15px;padding:15px;background:rgba(255,255,255,0.05);border-radius:6px}
   .text-left{text-align:left;margin:10px 0}
   .list-left{margin:10px 0;padding-left:20px}
-  .welcome-header{margin-bottom:20px;padding:15px;background:rgba(255,255,255,0.05);border-radius:6px;text-align:center}
-  .welcome-header h3{margin:0 0 8px 0;color:#fff;font-size:16px;font-weight:600}
-  .welcome-header p{margin:0;color:#e7f0ff;font-size:14px;opacity:0.9}
+  .welcome-header{margin-bottom:20px;padding:12px 16px;background:rgba(255,255,255,0.05);border-radius:6px;text-align:center}
+  .welcome-header h3{margin:0 0 6px 0;color:#fff;font-size:16px;font-weight:600}
+  .welcome-header p{margin:0;color:#e7f0ff;font-size:13px;opacity:0.9;line-height:1.3}
+  .help-button{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#e7f0ff;font-size:14px;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 120ms ease;margin:0}
+  .help-button:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.4);transform:scale(1.1)}
   .visualization-legend{margin-bottom:20px;padding:15px;background:rgba(255,255,255,0.05);border-radius:6px}
   .visualization-legend h3{margin:0 0 15px 0;color:#fff;font-size:16px;font-weight:600;text-align:center}
   .visualization-legend h4{margin:0 0 8px 0;color:#fff;font-size:14px;font-weight:600;border-bottom:1px solid rgba(255,255,255,0.2);padding-bottom:4px}
@@ -66,13 +68,6 @@
   .visualization-legend .legend-circle{flex-shrink:0;border-radius:50%;border:1px solid rgba(255,255,255,0.3);margin-top:2px}
   .visualization-legend .legend-text{color:#e7f0ff;font-size:12px;line-height:1.4}
   .visualization-legend .legend-text strong{color:#fff;font-weight:600}
-  .earthquake-detail h3{margin:0 0 12px 0;color:#fff;font-size:16px;font-weight:600}
-  .detail-item{margin-bottom:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1);font-size:13px;color:#e7f0ff}
-  .detail-item:last-child{border-bottom:none;margin-bottom:0}
-  .detail-item strong{color:#fff;font-weight:600}
-  .detail-actions{margin-top:12px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1)}
-  .clear-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#e7f0ff;padding:6px 12px;cursor:pointer;font-size:12px;transition:all 120ms ease}
-  .clear-btn:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3)}
   .welcome-message{padding:16px;text-align:center;color:#e7f0ff}
   .welcome-message h3{margin:0 0 8px 0;color:#fff;font-size:16px}
   .welcome-message p{margin:0;font-size:13px;opacity:0.8}
@@ -103,18 +98,18 @@
   .view-btn{flex:1;padding:6px 8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#e7f0ff;cursor:pointer;font-size:11px;transition:all 120ms ease}
   .view-btn:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3)}
   .view-btn.active{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.4);color:#fff}
-  .summary-overlay{position:absolute;top:12px;left:12px;z-index:20;pointer-events:none}
   .summary-toggle{background:rgba(15,23,36,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;justify-content:flex-start;align-items:center;font-size:13px;font-weight:600;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all 200ms ease;pointer-events:auto;min-width:80px;gap:8px}
   .summary-toggle:hover{background:rgba(15,23,36,0.95);box-shadow:0 6px 16px rgba(0,0,0,0.4)}
+  .transparency-toggle{background:rgba(15,23,36,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;justify-content:flex-start;align-items:center;font-size:13px;font-weight:600;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all 200ms ease;pointer-events:auto;min-width:80px;gap:8px}
+  .transparency-toggle:hover{background:rgba(15,23,36,0.95);box-shadow:0 6px 16px rgba(0,0,0,0.4)}
   .summary-section{padding:12px;background:rgba(15,23,36,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 4px 12px rgba(0,0,0,0.3);min-width:200px;margin-top:4px}
+  .transparency-section{padding:12px;background:rgba(15,23,36,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 4px 12px rgba(0,0,0,0.3);min-width:200px;margin-top:4px}
   .summary-stats{display:flex;flex-direction:column;gap:6px}
   .stat-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1)}
   .stat-item:last-child{border-bottom:none}
   .stat-label{font-size:11px;color:#e7f0ff;opacity:0.8}
   .stat-value{font-size:12px;color:#fff;font-weight:600}
-  .zoom-overlay{position:absolute;bottom:12px;right:12px;z-index:20;pointer-events:none}
-  .zoom-overlay .zoom-controls{display:flex;gap:6px;align-items:center;background:rgba(15,23,36,0.9);padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}
-  .legend-overlay{position:absolute;top:12px;right:12px;z-index:20;pointer-events:none}
+  .legend-overlay{position:absolute;top:12px;right:12px;z-index:1000;pointer-events:auto}
   .legend-toggle{background:rgba(15,23,36,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;justify-content:flex-start;align-items:center;font-size:13px;font-weight:600;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:all 200ms ease;pointer-events:auto;min-width:80px;gap:8px}
   .legend-toggle:hover{background:rgba(15,23,36,0.95);box-shadow:0 6px 16px rgba(0,0,0,0.4)}
   .toggle-icon{transition:transform 200ms ease;font-size:10px}
@@ -134,7 +129,7 @@
   .legend-item.selected{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3)}
   .legend-item.unselected{opacity:0.4}
   #map-container{width:100%;height:100%;position:relative}
-  svg#map{width:100%;height:100%;display:block;background:linear-gradient(180deg, var(--ocean) 0%, #bfc4f2 100%);min-height:500px}
+  #map{width:100%;height:100%;background:#E0E0E0;min-height:500px}
   #land .country{transition:fill 120ms ease}
   #land .country:hover{fill:#e7e3da}
   .earthquake-highlighted{opacity:1 !important;transition:all 300ms ease}
@@ -163,18 +158,7 @@
   .tick-labels .tick.last::before{left:100%}
   button{background:var(--panel);border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;color:#fff;cursor:pointer}
   button:active{transform:translateY(1px)}
-  .zoom-overlay .zoom-controls button{width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;cursor:pointer;transition:all 120ms ease;pointer-events:auto}
-  .zoom-overlay .zoom-controls button:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3)}
-  .zoom-overlay .zoom-controls button:disabled{opacity:0.4;cursor:not-allowed}
-  .zoom-overlay .zoom-controls button:disabled:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2)}
   select, input[type=number]{background:var(--panel);border:1px solid rgba(255,255,255,0.06);padding:6px 8px;border-radius:8px;color:#fff}
-  .tooltip{
-    position: absolute;
-    pointer-events: none;
-    background: rgba(12,12,12,0.95);
-    color:#fff;padding:8px 10px;border-radius:6px;font-size:13px;border:1px solid rgba(255,255,255,0.06);
-    display:none;white-space:nowrap;z-index:50;
-  }
   footer{font-size:11px;color:#cfd8e3;padding:4px 8px;background:linear-gradient(90deg,#07122611,#0b122011)}
   
   @media (max-width: 1024px) {
@@ -189,11 +173,12 @@
     #map-container {
       height: 50vh; /* Ensure map has enough space */
     }
-    .summary-section, .legend-section {
+    .summary-section, .legend-section, .transparency-section {
       display: none;
     }
     .summary-toggle.expanded + .summary-section,
-    .legend-toggle.expanded + .legend-section {
+    .legend-toggle.expanded + .legend-section,
+    .transparency-toggle.expanded + .transparency-section {
       display: block; /* Ensure toggling still works */
     }
   }
@@ -203,78 +188,18 @@
 <div class="wrap">
   <header>
     <h1>Worldwide Earthquakes of Magnitude 7.0+</h1>
-    <div style="opacity:0.85;font-size:13px">Data: local file <strong>earthquakes1925-2025.json</strong> (USGS). Move slider or Play.</div>
+    <div style="opacity:0.85;font-size:13px">Data: local file <strong>earthquakes_cleaned_full.json</strong> (USGS). Move slider or Play.</div>
   </header>
 
   <div id="vis">
     <aside class="sidebar custom-scrollbar">
       <div id="sidebarList" class="content custom-scrollbar">
         <div class="welcome-header">
-          <h3>Welcome to the Earthquake Map</h3>
-          <p>Click on any earthquake circle to view detailed information.</p>
-        </div>
-        
-        <div class="visualization-legend">
-          <h3>How to Read This Map</h3>
-          
-          <div class="legend-section">
-            <h4>Earthquake Circles</h4>
-            <div class="legend-item">
-              <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ffd54a;"></div>
-              <div class="legend-text">
-                <strong>Size:</strong> Larger circles = higher magnitude<br>
-                <strong>Color:</strong> Yellow (7.0-7.4) → Orange (7.5-7.9) → Red (8.0+)
-              </div>
-            </div>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 4px;">
+            <h3>This is the Earthquake Map</h3>
+            <button id="helpBtn" class="help-button" title="Show help information" onclick="document.getElementById('helpModal').style.display='block'">?</button>
           </div>
-          
-          <div class="legend-section">
-            <h4>Temporal Opacity (Cumulative View)</h4>
-            <div class="legend-item">
-              <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 0.2;"></div>
-              <div class="legend-text">
-                <strong>Older earthquakes (1925-1950):</strong> Very transparent
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 0.6;"></div>
-              <div class="legend-text">
-                <strong>Middle years (1950-2000):</strong> Semi-transparent
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 1.0;"></div>
-              <div class="legend-text">
-                <strong>Recent earthquakes (2000-2025):</strong> Fully opaque
-              </div>
-            </div>
-          </div>
-          
-          <div class="legend-section">
-            <h4>View Modes</h4>
-            <div class="legend-item">
-              <div class="legend-text">
-                <strong>Cumulative View:</strong> Shows all earthquakes with temporal opacity
-              </div>
-            </div>
-            <div class="legend-item">
-              <div class="legend-text">
-                <strong>Single Year View:</strong> Shows only earthquakes from selected year
-              </div>
-            </div>
-          </div>
-          
-          <div class="legend-section">
-            <h4>Controls</h4>
-            <div class="legend-item">
-              <div class="legend-text">
-                <strong>Year Slider:</strong> Navigate through time<br>
-                <strong>Play Button:</strong> Animate through years<br>
-                <strong>Magnitude Checkboxes:</strong> Filter by earthquake size<br>
-                <strong>Country Filter:</strong> Focus on specific regions
-              </div>
-            </div>
-          </div>
+          <p>Click on the button for detailed information</p>
         </div>
         
         <div class="view-controls">
@@ -285,21 +210,26 @@
           </div>
         </div>
         
-        <div class="sidebar-section">
+        <!-- Histogram section - only visible in single year view -->
+        <div class="sidebar-section" id="histogramSection" style="display: none;">
+          <h3>Earthquake Distribution by Year</h3>
+          <div id="yearHistogram" class="histogram-container"></div>
+        </div>
+        
+        <div class="sidebar-section" id="yearControlsSection" style="display: none;">
           <h3>Year Controls</h3>
           
           <div class="filter-group">
             <div class="label flex-between">
-              <span>Year: <strong id="yearLabel">1925</strong></span>
-              <input id="specificYearInput" type="number" min="1925" max="2025" value="1925" class="year-input">
+              <span>Year: <strong id="yearLabel">Loading...</strong></span>
+              <input id="specificYearInput" type="number" class="year-input">
             </div>
-            <div id="sliderWrap">
-              <div id="yearTickLabels" class="tick-labels"></div>
+    <div id="sliderWrap">
+      <div id="yearTickLabels" class="tick-labels"></div>
               <div id="yearGuide" class="hidden"></div>
-              <div id="yearHistogram" class="histogram-container"></div>
-              <input id="yearSlider" type="range" min="1925" max="2025" value="1925" step="1" list="yearDatalist">
-              <datalist id="yearDatalist"></datalist>
-            </div>
+      <input id="yearSlider" type="range" step="1" list="yearDatalist">
+      <datalist id="yearDatalist"></datalist>
+    </div>
           </div>
           
           <div class="filter-group">
@@ -312,9 +242,9 @@
           </div>
           
           <div class="filter-group">
-            <button id="playBtn" aria-pressed="false">Play ▶</button>
-          </div>
-        </div>
+    <button id="playBtn" aria-pressed="false">Play ▶</button>
+    </div>
+  </div>
         
         <div class="sidebar-section">
           <h3>Filters</h3>
@@ -351,22 +281,23 @@
       
     </aside>
     <div id="map-container" class="map-container">
-      <svg id="map" viewBox="0 0 1100 600" preserveAspectRatio="xMidYMid meet"></svg>
-      <div id="tooltip" class="tooltip"></div>
-      <div class="zoom-overlay">
-        <div class="zoom-controls">
-          <button id="zoomOutBtn" title="Zoom Out">−</button>
-          <button id="resetZoomBtn" title="Reset Zoom">⌂</button>
-          <button id="zoomInBtn" title="Zoom In">+</button>
+      <div id="map"></div>
+      
+      <div class="legend-overlay">
+        <div class="legend-toggle" id="legendToggle" title="Toggle Magnitude Legend" onclick="toggleLegend()">
+          <span>Magnitude Legend</span>
+          <span class="toggle-icon">▼</span>
         </div>
+        <div class="legend-section" id="legendSection" style="display: none;">
+          <h3>Magnitude Legend</h3>
+          <div id="magnitudeLegend"></div>
       </div>
       
-      <div class="summary-overlay">
-        <div class="summary-toggle" id="summaryToggle" title="Toggle Summary Panel">
+        <div class="summary-toggle" id="summaryToggle" title="Toggle Summary Panel" onclick="toggleSummary()" style="margin-top: 8px;">
           <span>Summary</span>
           <span class="toggle-icon">▼</span>
         </div>
-        <div class="summary-section" id="summarySection">
+        <div class="summary-section" id="summarySection" style="display: none;">
           <div class="summary-stats">
             <div class="stat-item">
               <div class="stat-label">Total Earthquakes:</div>
@@ -382,15 +313,38 @@
             </div>
           </div>
         </div>
-      </div>
-      <div class="legend-overlay">
-        <div class="legend-toggle" id="legendToggle" title="Toggle Magnitude Legend">
-          <span>Magnitude Legend</span>
+        
+        <div class="transparency-toggle" id="transparencyToggle" title="Toggle Transparency Legend" onclick="toggleTransparency()" style="margin-top: 8px;">
+          <span>Transparency</span>
           <span class="toggle-icon">▼</span>
         </div>
-        <div class="legend-section" id="legendSection">
-          <h3>Magnitude Legend</h3>
-          <div id="magnitudeLegend"></div>
+        <div class="transparency-section" id="transparencySection" style="display: none;">
+          <div class="transparency-legend">
+            <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #e7f0ff; font-weight: 600;">Transparency by Year</h4>
+            <div class="transparency-item" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+              <div class="transparency-circle" style="width: 12px; height: 12px; border-radius: 50%; background: #FFD700; opacity: 0.2;"></div>
+              <div class="transparency-label" style="font-size: 11px; color: #e7f0ff;">1925-1950: Very Old (20% opacity)</div>
+            </div>
+            <div class="transparency-item" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+              <div class="transparency-circle" style="width: 12px; height: 12px; border-radius: 50%; background: #FFD700; opacity: 0.4;"></div>
+              <div class="transparency-label" style="font-size: 11px; color: #e7f0ff;">1950-1975: Old (40% opacity)</div>
+            </div>
+            <div class="transparency-item" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+              <div class="transparency-circle" style="width: 12px; height: 12px; border-radius: 50%; background: #FFD700; opacity: 0.6;"></div>
+              <div class="transparency-label" style="font-size: 11px; color: #e7f0ff;">1975-2000: Recent (60% opacity)</div>
+            </div>
+            <div class="transparency-item" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+              <div class="transparency-circle" style="width: 12px; height: 12px; border-radius: 50%; background: #FFD700; opacity: 0.8;"></div>
+              <div class="transparency-label" style="font-size: 11px; color: #e7f0ff;">2000-2015: Very Recent (80% opacity)</div>
+            </div>
+            <div class="transparency-item" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+              <div class="transparency-circle" style="width: 12px; height: 12px; border-radius: 50%; background: #FFD700; opacity: 1.0;"></div>
+              <div class="transparency-label" style="font-size: 11px; color: #e7f0ff;">2015-2025: Current (100% opacity)</div>
+            </div>
+            <div class="transparency-note" style="margin-top: 8px; font-size: 10px; color: #e7f0ff; opacity: 0.7; font-style: italic;">
+              Older earthquakes appear more translucent, newer ones are fully opaque
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -404,109 +358,339 @@
 
 <script>
 (async () => {
-  const svg = d3.select("#map");
-  const width = +svg.attr("width");
-  const height = +svg.attr("height");
+  // Initialize Leaflet map
+  const map = L.map('map').setView([20, 0], 2);
 
-  // Simplified SVG definitions for better performance
-  const defs = svg.append('defs');
+  // Add Carto Light tile layer
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  }).addTo(map);
 
-  // Layers
-  const g = svg.append("g");
-  const landLayer = g.append("g").attr("id","land");
-  const quakeLayer = g.append("g").attr("id","quakes");
-
-  // Projection - centered to show whole world
-  const projection = d3.geoNaturalEarth1()
-    .translate([550, 300])  // Center of viewBox (1100/2, 600/2)
-    .scale(250);  // Larger scale to ensure world is visible
-
-  const path = d3.geoPath(projection);
-
-  // Zoom behavior
-  const zoom = d3.zoom()
-    .scaleExtent([0.5, 8])
-    .on("zoom", (event) => {
-      const { transform } = event;
-      g.attr("transform", transform);
-      updateZoomButtons(transform.k);
-    });
-
-  // Apply zoom to the SVG
-  svg.call(zoom);
+  // Create layers for earthquakes and countries
+  let earthquakeLayer = L.layerGroup().addTo(map);
+  let countryLayer;
+  let allEarthquakesData = [];
 
   // Tooltip
-  const tooltip = d3.select("#tooltip");
 
-  // Load world map
-  const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
-  const countries = topojson.feature(world, world.objects.countries);
-  const countryMesh = topojson.mesh(world, world.objects.countries);
-
-  const landPaths = landLayer.selectAll("path")
-    .data(countries.features)
-    .enter().append("path")
-      .attr("d", path)
-      .attr("class","country")
-      .attr("fill", "white")
-      .attr("stroke", "#333")
-      .attr("stroke-width", 0.5)
-      .style('cursor','pointer')
-      .on('click', (e, feature) => {
-        const name = feature.properties.name || feature.properties.NAME || feature.id || '';
-        if (name) {
-          if (name === activeCountry) {
-            // Logic from #clearFiltersBtn handler - deselect current country
-            activeCountry = '';
-            activeSpecificYear = null;
-            d3.select('#activeCountryText').text('None');
-            d3.select('#activeYearText').text('None');
-            d3.select('#countrySelect').property('value', '');
-            populateSidebarForCountry('');
-            if (selectedCountryPath) selectedCountryPath.attr('fill','white');
-            drawYear(currentYear);
-          } else {
-            // Existing selection logic - select new country
-            activeCountry = name;
-            d3.select('#countrySelect').property('value', name);
-            d3.select('#activeCountryText').text(name || 'None');
-            highlightSelectedCountry(name);
-            populateSidebarForCountry(name);
-            drawYear(currentYear);
-          }
-        }
-      });
-  // Sidebar is fixed via CSS; no sync needed
+  // Country layer removed - using only the tile layer for clean appearance
 
   // Load earthquake data
-  const quakeData = await fetch("earthquakes1925-2025.json").then(r => r.json());
+  const quakeData = await fetch("earthquakes_cleaned_full.json").then(r => r.json());
+  
+  // Filter out the 2004 Sumatra earthquake
+  const filteredQuakeData = quakeData.filter(quake => 
+    !(quake.place && quake.place.includes('2004 Sumatra - Andaman Islands Earthquake'))
+  );
 
-  // Helper to find country name by point using hit-testing on country polygons
+  // Helper to find country name by point - simplified since no country layer
   function getCountryNameFromPoint(lon, lat) {
-    const p = [lon, lat];
-    for (const feature of countries.features) {
-      if (d3.geoContains(feature, p)) {
-        // Country name source varies by dataset; try common props
-        return feature.properties.name || feature.properties.NAME || feature.id || "Unknown";
-      }
-    }
-    return "Ocean";
+    // Since we removed the country layer, just return "Unknown" for now
+    // The earthquake data already has country information, so this is mainly a fallback
+    return "Unknown";
   }
 
-  const quakes = quakeData.features.map(f => {
-    const [lon, lat, depth] = f.geometry.coordinates;
-    const props = f.properties;
-    const date = new Date(props.time || props.origintime);
+  console.log('Processing earthquake data...');
+  console.log('Raw data length:', quakeData.length);
+  console.log('Filtered data length:', filteredQuakeData.length);
+  console.log('Sample data point:', filteredQuakeData[0]);
+  
+  const quakes = filteredQuakeData.map((f, index) => {
+    let lon = f.longitude;
+    let lat = f.latitude;
+    const depth = f.depth;
+    const year = f.year;
+    
+    // Fix data quality issues
+    if (lat < -90 || lat > 90) {
+      // If latitude is clearly wrong, try to fix it
+      if (Math.abs(lat) > 1000) {
+        lat = lat / 1000; // Divide by 1000 to get reasonable latitude
+      } else if (lat < -90) {
+        // If latitude is negative and too small, it might be missing decimal point
+        lat = lat / 100; // Try dividing by 100
+      }
+    }
+    if (lon < -180 || lon > 180) {
+      // If longitude is clearly wrong, try to fix it
+      if (Math.abs(lon) > 1000) {
+        lon = lon / 1000; // Divide by 1000 to get reasonable longitude
+      }
+    }
+    
+    // Special case for Gorontalo, Indonesia earthquakes (known data quality issues)
+    if (f.place && f.place.includes('Gorontalo, Indonesia')) {
+      // Gorontalo is at approximately 0.5°N, 123.1°E
+      if (lat < -90 || lat > 90 || Math.abs(lat) > 10) {
+        lat = 0.5; // Set to approximate Gorontalo latitude
+      }
+      if (lon < 120 || lon > 130) {
+        lon = 123.1; // Set to approximate Gorontalo longitude
+      }
+    }
+    
+    // Final coordinate validation and last-chance fixes
+    if (isNaN(lat) || isNaN(lon)) {
+      console.warn('Skipping earthquake with NaN coordinates:', f);
+      skippedCount++;
+      return null;
+    }
+    
+    // Last-chance coordinate fixes for any remaining issues
+    if (lat < -90 || lat > 90) {
+      console.warn('Attempting final latitude fix for:', f.place, 'lat:', lat);
+      if (Math.abs(lat) > 1000) {
+        lat = lat / 1000;
+      } else if (Math.abs(lat) > 100) {
+        lat = lat / 100;
+      } else if (lat < -90) {
+        lat = lat / 10;
+      }
+    }
+    
+    if (lon < -180 || lon > 180) {
+      console.warn('Attempting final longitude fix for:', f.place, 'lon:', lon);
+      if (Math.abs(lon) > 1000) {
+        lon = lon / 1000;
+      } else if (Math.abs(lon) > 180) {
+        lon = lon / 100;
+      }
+    }
+    
+    // Final validation - skip if still invalid
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      console.warn('Skipping earthquake with unfixable coordinates:', f, 'lat:', lat, 'lon:', lon);
+      skippedCount++;
+      return null;
+    }
+    
+    // Log any coordinates that seem suspicious for debugging
+    if (Math.abs(lat) > 10 || Math.abs(lon) > 180) {
+      console.log('Suspicious coordinates detected:', {
+        place: f.place,
+        originalLat: f.latitude,
+        originalLon: f.longitude,
+        correctedLat: lat,
+        correctedLon: lon
+      });
+    }
+    
+    // Create a date from the year (using January 1st as placeholder)
+    const date = new Date(year, 0, 1);
+    
+    // Extract country from place string
+    const place = f.place || '';
+    let country = 'Unknown';
+    
+    // Try to extract country from place string
+    if (place.includes(',')) {
+      const parts = place.split(',');
+      country = parts[parts.length - 1].trim();
+    } else if (place.includes('region') || place.includes('Island')) {
+      country = place;
+    } else if (place.includes('Russia')) {
+      country = 'Russia';
+    } else if (place.includes('Japan')) {
+      country = 'Japan';
+    } else if (place.includes('Chile')) {
+      country = 'Chile';
+    } else if (place.includes('Indonesia')) {
+      country = 'Indonesia';
+    } else if (place.includes('Philippines')) {
+      country = 'Philippines';
+    } else if (place.includes('Tonga')) {
+      country = 'Tonga';
+    } else if (place.includes('Vanuatu')) {
+      country = 'Vanuatu';
+    } else if (place.includes('Peru')) {
+      country = 'Peru';
+    } else if (place.includes('Taiwan')) {
+      country = 'Taiwan';
+    } else if (place.includes('China')) {
+      country = 'China';
+    } else if (place.includes('Mexico')) {
+      country = 'Mexico';
+    } else if (place.includes('Alaska')) {
+      country = 'United States';
+    } else if (place.includes('California')) {
+      country = 'United States';
+    } else if (place.includes('Turkey')) {
+      country = 'Turkey';
+    } else if (place.includes('New Zealand')) {
+      country = 'New Zealand';
+    } else if (place.includes('Fiji')) {
+      country = 'Fiji';
+    } else if (place.includes('Solomon Islands')) {
+      country = 'Solomon Islands';
+    } else if (place.includes('Papua New Guinea')) {
+      country = 'Papua New Guinea';
+    } else if (place.includes('Myanmar') || place.includes('Burma')) {
+      country = 'Myanmar';
+    } else if (place.includes('Cayman Islands')) {
+      country = 'Cayman Islands';
+    } else if (place.includes('Tibet')) {
+      country = 'China';
+    } else if (place.includes('Macquarie Island')) {
+      country = 'Australia';
+    } else if (place.includes('Bihar') || place.includes('Nepal')) {
+      country = 'Nepal';
+    } else if (place.includes('Sulawesi')) {
+      country = 'Indonesia';
+    } else if (place.includes('Hyuganada') || place.includes('Toankai') || place.includes('Tokachi') || place.includes('Hokkaido')) {
+      country = 'Japan';
+    } else if (place.includes('Makran')) {
+      country = 'Pakistan';
+    } else if (place.includes('Sumatra') || place.includes('Andaman')) {
+      country = 'Indonesia';
+    } else if (place.includes('Sea') || place.includes('Ocean') || place.includes('Basin') || 
+               place.includes('Passage') || place.includes('Trench') || place.includes('Ridge') ||
+               place.includes('Plateau') || place.includes('Rise') || place.includes('Abyssal') ||
+               place.includes('Deep') || place.includes('Gulf') || place.includes('Bay') ||
+               place.includes('Strait') || place.includes('Channel') || place.includes('Shelf')) {
+      // Mark oceanic/sea locations as Unknown to exclude them from country filter
+      country = 'Unknown';
+    } else {
+      // If no specific country found, mark as Unknown
+      country = 'Unknown';
+    }
+    
     return {
-      id: f.id,
-      lon, lat,
-      mag: +props.mag,
-      place: props.place,
+      id: f.id || `earthquake_${index}`, // Generate ID if not present
+      lon, lat, depth,
+      mag: +f.magnitude,
+      place: f.place,
       timeISO: date.toISOString(),
-      year: date.getUTCFullYear(),
-      country: getCountryNameFromPoint(lon, lat)
+      year: year,
+      country: country
     };
-  }).filter(d => d.year >= 1925 && d.year <= 2025);
+  }).filter(d => d && d.year >= 1900 && d.year <= 2030); // Expanded range to handle actual data, filter out nulls
+  
+  console.log('Processed earthquakes:', quakes.length);
+  console.log('Sample processed earthquake:', quakes[0]);
+  console.log('Year range:', d3.extent(quakes, d => d.year));
+  console.log('Magnitude range:', d3.extent(quakes, d => d.mag));
+  console.log('Countries found:', [...new Set(quakes.map(d => d.country))].slice(0, 10));
+
+  // Add manually corrected important earthquakes that might be missing
+  const manualEarthquakes = [
+    {
+      id: 'valdivia_1960_manual',
+      lat: -38.143,
+      lon: -73.407,
+      depth: 25,
+      mag: 9.5,
+      place: '1960 Great Chilean Earthquake (Valdivia Earthquake)',
+      timeISO: new Date(1960, 0, 1).toISOString(),
+      year: 1960,
+      country: 'Chile'
+    },
+    {
+      id: 'alaska_1964_manual',
+      lat: 61.02,
+      lon: -147.65,
+      depth: 25,
+      mag: 9.2,
+      place: '1964 Alaska Earthquake',
+      timeISO: new Date(1964, 2, 27).toISOString(),
+      year: 1964,
+      country: 'United States'
+    },
+    {
+      id: 'tohoku_2011_manual',
+      lat: 38.297,
+      lon: 142.373,
+      depth: 29,
+      mag: 9.0,
+      place: '2011 Tohoku Earthquake',
+      timeISO: new Date(2011, 2, 11).toISOString(),
+      year: 2011,
+      country: 'Japan'
+    },
+    {
+      id: 'kamchatka_1952_manual',
+      lat: 52.623,
+      lon: 159.779,
+      depth: 30,
+      mag: 9.0,
+      place: '1952 Kamchatka Earthquake',
+      timeISO: new Date(1952, 10, 4).toISOString(),
+      year: 1952,
+      country: 'Russia'
+    },
+    {
+      id: 'maule_2010_manual',
+      lat: -35.846,
+      lon: -72.719,
+      depth: 35,
+      mag: 8.8,
+      place: '2010 Maule, Chile Earthquake',
+      timeISO: new Date(2010, 1, 27).toISOString(),
+      year: 2010,
+      country: 'Chile'
+    },
+    {
+      id: 'rat_islands_1965_manual',
+      lat: 51.25,
+      lon: 178.72,
+      depth: 30,
+      mag: 8.7,
+      place: '1965 Rat Islands, Alaska Earthquake',
+      timeISO: new Date(1965, 1, 4).toISOString(),
+      year: 1965,
+      country: 'United States'
+    },
+    {
+      id: 'assam_1950_manual',
+      lat: 28.5,
+      lon: 96.5,
+      depth: 15,
+      mag: 8.6,
+      place: '1950 Assam-Tibet Earthquake',
+      timeISO: new Date(1950, 7, 15).toISOString(),
+      year: 1950,
+      country: 'India'
+    },
+    {
+      id: 'sumatra_2005_manual',
+      lat: 2.085,
+      lon: 97.108,
+      depth: 30,
+      mag: 8.6,
+      place: '2005 Sumatra Earthquake',
+      timeISO: new Date(2005, 2, 28).toISOString(),
+      year: 2005,
+      country: 'Indonesia'
+    }
+  ];
+  
+  // Add manual earthquakes to the main dataset
+  quakes.push(...manualEarthquakes);
+  console.log('=== EARTHQUAKE DATA SUMMARY ===');
+  console.log('Added', manualEarthquakes.length, 'manually corrected earthquakes');
+  console.log('Total earthquakes before deduplication:', quakes.length);
+  
+  // Remove duplicates based on place, year, and magnitude
+  const seen = new Set();
+  const uniqueQuakes = quakes.filter(quake => {
+    const key = `${quake.place}-${quake.year}-${quake.mag}`;
+    if (seen.has(key)) {
+      console.log('Removing duplicate:', quake.place, quake.year, quake.mag);
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+  
+  quakes.length = 0; // Clear the array
+  quakes.push(...uniqueQuakes); // Add unique earthquakes back
+  
+  console.log('Total earthquakes after deduplication:', quakes.length);
+  console.log('Removed', manualEarthquakes.length + quakeData.length - quakes.length, 'duplicates');
+  console.log('Sample earthquake:', quakes[0]);
+  console.log('Valdivia in quakes:', quakes.find(d => d.place && d.place.includes('Valdivia')));
+  console.log('================================');
+  
 
   const byYear = d3.group(quakes, d => d.year);
 
@@ -515,13 +699,17 @@
 
   // Function to draw year histogram
   function drawYearHistogram() {
-    const minYear = 1925;
-    const maxYear = 2025;
+    const actualYears = Array.from(byYear.keys()).sort((a, b) => a - b);
+    const minYear = Math.min(...actualYears);
+    const maxYear = Math.max(...actualYears);
     const yearRange = Array.from({length: maxYear - minYear + 1}, (_, i) => minYear + i);
 
     const maxCount = d3.max(Array.from(countsByYear.values()));
 
     const container = d3.select('#yearHistogram');
+    // Clear any existing bars
+    container.selectAll('div.bar').remove();
+    
     const width = container.node().getBoundingClientRect().width;
     const height = container.node().getBoundingClientRect().height;
 
@@ -549,21 +737,34 @@
   // Call the function after countsByYear is created
   drawYearHistogram();
 
-  // Populate country dropdown
-  const countrySet = new Set(quakes.map(d => d.country).filter(Boolean));
-  const countrySelect = d3.select('#countrySelect');
-  Array.from(countrySet).sort().forEach(c => {
-    countrySelect.append('option').attr('value', c).text(c);
-  });
+  // Populate country dropdown - only include earthquakes with proper country names
+  const countrySet = new Set(quakes.map(d => d.country).filter(c => c && c !== 'Unknown' && c.trim() !== ''));
+  
+  // Sort countries alphabetically
+  const sortedCountries = Array.from(countrySet).sort();
+  
+  // Function to populate a country select
+  function populateCountrySelect(selectId) {
+    const countrySelect = d3.select(selectId);
+    
+    // Add only countries with proper names
+    sortedCountries.forEach(c => {
+      countrySelect.append('option').attr('value', c).text(c);
+    });
+  }
+  
+  // Populate both country selects
+  populateCountrySelect('#countrySelect');
+  populateCountrySelect('#countrySelect2');
 
   // Scales
   const rScale = d3.scaleSqrt()
     .domain([6.5, 9.5])
-    .range([3, 28]);
-  // Color scale by magnitude: yellow → orange → red → purple
+    .range([1.2, 8.4]); // Much smaller circles: 1.2 to 8.4 pixels
+  // Color scale by magnitude categories: Gold/Yellow → Red → Purple
   const quakeColorScale = d3.scaleLinear()
-    .domain([6.5, 7.5, 8.5, 9.5])
-    .range(["#ffd54a", "#ff8a3d", "#ff3b30", "#a334ff"]) // amarillo, naranja, rojo, púrpura
+    .domain([7.0, 7.5, 8.0, 9.0, 10.0])
+    .range(["#FFD700", "#FF8C00", "#FF4500", "#DC143C", "#8B008B"]) // Gold → Dark Orange → Red Orange → Crimson → Dark Magenta
     .clamp(true);
   function getMagColor(mag) {
     return quakeColorScale(mag);
@@ -575,7 +776,9 @@
     .range([0.2, 1.0])  // More pronounced difference: very old (0.2) to recent (1.0)
     .clamp(true);
   function getTemporalOpacity(year) {
-    return temporalOpacityScale(year);
+    const opacity = temporalOpacityScale(year);
+    console.log(`Temporal opacity for year ${year}: ${opacity}`);
+    return opacity;
   }
 
   // Create magnitude legend
@@ -585,10 +788,10 @@
 
     // Define magnitude ranges for legend
     const magnitudeRanges = [
-      { min: 7.0, max: 7.5, label: "7.0 - 7.5", description: "Strong" },
-      { min: 7.5, max: 8.0, label: "7.5 - 8.0", description: "Major" },
-      { min: 8.0, max: 8.5, label: "8.0 - 8.5", description: "Great" },
-      { min: 8.5, max: 9.5, label: "8.5+", description: "Great+" }
+      { min: 7.0, max: 7.5, label: "M 7.0 - 7.5", description: "Strong" },
+      { min: 7.5, max: 8.0, label: "M 7.5 - 8.0", description: "Major" },
+      { min: 8.0, max: 9.0, label: "M 8.0 - 9.0", description: "Great" },
+      { min: 9.0, max: 10.0, label: "M 9.0+", description: "Extreme (rare)" }
     ];
 
     magnitudeRanges.forEach(range => {
@@ -618,7 +821,8 @@
             legendItem.classed('selected', false).classed('unselected', true);
           }
           
-          updateEarthquakeVisibility();
+          // Redraw the map with new filtering
+          drawYear(currentYear);
         });
 
       legendItem.append('div')
@@ -651,35 +855,6 @@
   
   // Controls are now in the sidebar
 
-  // Update earthquake visibility based on selected magnitude ranges
-  function updateEarthquakeVisibility() {
-    const circles = quakeLayer.selectAll("circle");
-    
-    circles.each(function(d) {
-      const circle = d3.select(this);
-      
-      // Check if this earthquake's magnitude is in any selected range
-      let isVisible = false;
-      for (const rangeKey of selectedMagnitudeRanges) {
-        const [min, max] = rangeKey.split('-').map(Number);
-        if (d.mag >= min && d.mag < max) {
-          isVisible = true;
-          break;
-        }
-      }
-      
-      if (isVisible) {
-        circle.classed('earthquake-visible', true);
-        circle.classed('earthquake-hidden', false);
-        // Don't override opacity - let drawYear() handle temporal opacity
-        circle.style('fill', getMagColor(d.mag));
-      } else {
-        circle.classed('earthquake-visible', false);
-        circle.classed('earthquake-hidden', true);
-        circle.style('opacity', 0);
-      }
-    });
-  }
 
   // Legacy functions for compatibility (now unused but kept for reference)
   function highlightEarthquakesByMagnitude(minMag, maxMag) {
@@ -690,62 +865,10 @@
     // This function is now replaced by updateEarthquakeVisibility
   }
 
-  // Zoom state
-  let currentZoom = 1;
-  const minZoom = 0.5;
-  const maxZoom = 8;
-
-  // Update zoom button states
-  function updateZoomButtons(scale) {
-    currentZoom = scale;
-    const zoomOutBtn = d3.select('#zoomOutBtn');
-    const zoomInBtn = d3.select('#zoomInBtn');
-    const resetZoomBtn = d3.select('#resetZoomBtn');
-    
-    zoomOutBtn.property('disabled', scale <= minZoom);
-    zoomInBtn.property('disabled', scale >= maxZoom);
-    resetZoomBtn.property('disabled', Math.abs(scale - 1) < 0.01);
-  }
-
-  // Zoom functions
-  function zoomIn() {
-    const currentTransform = d3.zoomTransform(svg.node());
-    const newScale = Math.min(currentTransform.k * 1.5, maxZoom);
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const transform = d3.zoomIdentity
-      .translate(centerX, centerY)
-      .scale(newScale)
-      .translate(-centerX, -centerY);
-    
-    svg.transition().duration(300).call(zoom.transform, transform);
-  }
-
-  function zoomOut() {
-    const currentTransform = d3.zoomTransform(svg.node());
-    const newScale = Math.max(currentTransform.k / 1.5, minZoom);
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const transform = d3.zoomIdentity
-      .translate(centerX, centerY)
-      .scale(newScale)
-      .translate(-centerX, -centerY);
-    
-    svg.transition().duration(300).call(zoom.transform, transform);
-  }
-
-  function resetZoom() {
-    svg.transition().duration(300).call(zoom.transform, d3.zoomIdentity);
-  }
+  // Zoom state management removed - using inline onclick handlers with built-in checks
 
   function highlightSelectedCountry(name) {
-    if (selectedCountryPath) {
-      selectedCountryPath.attr('fill', 'white');
-    }
-    const countryHighlight = getComputedStyle(document.documentElement).getPropertyValue('--pink')?.trim() || '#ff2aa1';
-    selectedCountryPath = landLayer.selectAll('path')
-      .filter(d => (d.properties.name || d.properties.NAME || d.id || '') === name)
-      .attr('fill', countryHighlight);
+    // Country layer removed - this function does nothing
   }
 
   function populateSidebarForCountry(name) {
@@ -755,7 +878,17 @@
     listEl.html('');
     if (!name) return;
     const items = quakes.filter(q => q.country === name)
-      .sort((a,b) => d3.descending(a.year, b.year));
+      .sort((a,b) => {
+        // First sort by whether country is properly named (proper names first)
+        const aHasProperCountry = a.country && a.country !== 'Unknown' && a.country.trim() !== '';
+        const bHasProperCountry = b.country && b.country !== 'Unknown' && b.country.trim() !== '';
+        
+        if (aHasProperCountry && !bHasProperCountry) return -1;
+        if (!aHasProperCountry && bHasProperCountry) return 1;
+        
+        // If both have same country status, sort by year (descending)
+        return d3.descending(a.year, b.year);
+      });
     if (items.length === 0) {
       listEl.append('div').attr('class','item').text('No data available.');
       return;
@@ -764,6 +897,114 @@
       listEl.append('div').attr('class','item')
         .html(`<strong>${it.year}</strong> · M ${it.mag} — ${it.place}`);
     });
+    
+    // Add Clear Selection button after the list
+    listEl.append('div').attr('class','item').style('margin-top', '12px').style('padding-top', '12px').style('border-top', '1px solid rgba(255,255,255,0.1)')
+      .append('button')
+      .attr('class', 'clear-btn')
+      .style('width', '100%')
+      .text('Clear Selection')
+      .on('click', () => {
+        // Clear the country selection and return to main screen
+        activeCountry = '';
+        d3.select('#activeCountryText').text('None');
+        d3.select('#countrySelect').property('value', '');
+        d3.select('#countrySelect2').property('value', '');
+        highlightSelectedCountry('');
+        
+        // Return to main screen by restoring the original sidebar content
+        const sidebarContent = d3.select("#sidebarList");
+        sidebarContent.html(`
+          <div class="welcome-header">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 4px;">
+              <h3>This is the Earthquake Map</h3>
+              <button id="helpBtn" class="help-button" title="Show help information" onclick="document.getElementById('helpModal').style.display='block'">?</button>
+            </div>
+            <p>Click on the button for detailed information</p>
+          </div>
+          
+          <div class="view-controls">
+            <h3>View Mode</h3>
+            <div class="view-buttons">
+              <button id="defaultViewBtn" class="view-btn active">Cumulative View</button>
+              <button id="animationViewBtn" class="view-btn">Single Year View</button>
+            </div>
+          </div>
+          
+          <!-- Histogram section - only visible in single year view -->
+          <div class="sidebar-section" id="histogramSection" style="display: none;">
+            <h3>Earthquake Distribution by Year</h3>
+            <div id="yearHistogram" class="histogram-container"></div>
+          </div>
+          
+          <div class="sidebar-section" id="yearControlsSection" style="display: none;">
+            <h3>Year Controls</h3>
+            
+            <div class="filter-group">
+              <div class="label flex-between">
+                <span>Year: <strong id="yearLabel">Loading...</strong></span>
+                <input id="specificYearInput" type="number" class="year-input">
+              </div>
+              <div id="sliderWrap">
+                <div id="yearTickLabels" class="tick-labels"></div>
+                <div id="yearGuide" class="hidden"></div>
+                <input id="yearSlider" type="range" step="1" list="yearDatalist">
+                <datalist id="yearDatalist"></datalist>
+              </div>
+            </div>
+            
+            <div class="filter-group">
+              <label for="speedControl">Animation Speed:</label>
+              <select id="speedControl">
+                <option value="1000">Slow (0.5x)</option>
+                <option value="500" selected>Normal (1x)</option>
+                <option value="250">Fast (2x)</option>
+              </select>
+            </div>
+            
+            <div class="filter-group">
+              <button id="playBtn" aria-pressed="false">Play ▶</button>
+            </div>
+          </div>
+          
+          <div class="sidebar-section">
+            <h3>Filters</h3>
+            <div class="filter-group">
+              <label>Country Filter:</label>
+              <select id="countrySelect"><option value="">All Countries</option></select>
+            </div>
+            
+            <div class="filter-group">
+              <label>Magnitude Range:</label>
+              <div class="magnitude-range">
+                <div class="range-labels">
+                  <span id="minMagLabel">7.0</span>
+                  <span id="maxMagLabel">9.5</span>
+                </div>
+                <div class="range-inputs">
+                  <input type="range" id="minMagSlider" min="7.0" max="9.5" step="0.1" value="7.0">
+                  <input type="range" id="maxMagSlider" min="7.0" max="9.5" step="0.1" value="9.5">
+                </div>
+              </div>
+            </div>
+            
+            <div class="filter-group">
+              <button id="clearFiltersBtn">Clear All Filters</button>
+            </div>
+            
+            <div class="active-filters">
+              <div>Active Country: <strong id="activeCountryText">None</strong></div>
+              <div>Active Year: <strong id="activeYearText">None</strong></div>
+              <div>Magnitude Range: <strong id="activeMagText">7.0 - 9.5</strong></div>
+            </div>
+          </div>
+        `);
+        
+        // Re-attach event handlers after restoring content
+        attachSidebarEventHandlers();
+        
+        drawYear(currentYear);
+      });
   }
 
   function updateSummaryStats(list) {
@@ -790,216 +1031,7 @@
     d3.select('#mostActiveCountry').text(mostActiveCountry);
   }
 
-  // Display earthquake data in sidebar
-  function displayEarthquakeInSidebar(earthquake) {
-    const sidebarContent = d3.select("#sidebarList");
-    
-    // Format the date
-    const date = new Date(earthquake.timeISO);
-    const formattedDate = date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    
-    // Create detailed earthquake information
-    const earthquakeInfo = `
-      <div class="earthquake-detail">
-        <h3>Earthquake Details</h3>
-        <div class="detail-item">
-          <strong>Location:</strong> ${earthquake.place}${earthquake.country ? `, ${earthquake.country}` : ''}
-        </div>
-        <div class="detail-item">
-          <strong>Magnitude:</strong> ${earthquake.mag}
-        </div>
-        <div class="detail-item">
-          <strong>Date & Time:</strong> ${formattedDate}
-        </div>
-        <div class="detail-item">
-          <strong>Coordinates:</strong> ${earthquake.lat.toFixed(4)}°N, ${earthquake.lon.toFixed(4)}°E
-        </div>
-        <div class="detail-item">
-          <strong>Year:</strong> ${earthquake.year}
-        </div>
-        <div class="detail-actions">
-          <button class="clear-btn" id="clearSelectionBtn">Clear Selection</button>
-        </div>
-      </div>
-    `;
-    
-    sidebarContent.html(earthquakeInfo);
-    
-    // Attach event handler using D3
-    d3.select('#clearSelectionBtn').on('click', clearEarthquakeSelection);
-  }
   
-  // Clear earthquake selection
-  function clearEarthquakeSelection() {
-    const sidebarContent = d3.select("#sidebarList");
-    sidebarContent.html(`
-      <div class="welcome-header">
-        <h3>Welcome to the Earthquake Map</h3>
-        <p>Click on any earthquake circle to view detailed information.</p>
-      </div>
-      
-      <div class="visualization-legend">
-        <h3>How to Read This Map</h3>
-        
-        <div class="legend-section">
-          <h4>Earthquake Circles</h4>
-          <div class="legend-item">
-            <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ffd54a;"></div>
-            <div class="legend-text">
-              <strong>Size:</strong> Larger circles = higher magnitude<br>
-              <strong>Color:</strong> Yellow (7.0-7.4) → Orange (7.5-7.9) → Red (8.0+)
-            </div>
-          </div>
-        </div>
-        
-        <div class="legend-section">
-          <h4>Temporal Opacity (Cumulative View)</h4>
-          <div class="legend-item">
-            <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 0.2;"></div>
-            <div class="legend-text">
-              <strong>Older earthquakes (1925-1950):</strong> Very transparent
-            </div>
-          </div>
-          <div class="legend-item">
-            <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 0.6;"></div>
-            <div class="legend-text">
-              <strong>Middle years (1950-2000):</strong> Semi-transparent
-            </div>
-          </div>
-          <div class="legend-item">
-            <div class="legend-circle" style="width: 8px; height: 8px; background-color: #ff3b30; opacity: 1.0;"></div>
-            <div class="legend-text">
-              <strong>Recent earthquakes (2000-2025):</strong> Fully opaque
-            </div>
-          </div>
-        </div>
-        
-        <div class="legend-section">
-          <h4>View Modes</h4>
-          <div class="legend-item">
-            <div class="legend-text">
-              <strong>Cumulative View:</strong> Shows all earthquakes with temporal opacity
-            </div>
-          </div>
-          <div class="legend-item">
-            <div class="legend-text">
-              <strong>Single Year View:</strong> Shows only earthquakes from selected year
-            </div>
-          </div>
-        </div>
-        
-        <div class="legend-section">
-          <h4>Controls</h4>
-          <div class="legend-item">
-            <div class="legend-text">
-              <strong>Year Slider:</strong> Navigate through time<br>
-              <strong>Play Button:</strong> Animate through years<br>
-              <strong>Magnitude Checkboxes:</strong> Filter by earthquake size<br>
-              <strong>Country Filter:</strong> Focus on specific regions
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="view-controls">
-        <h3>View Mode</h3>
-        <div class="view-buttons">
-          <button id="defaultViewBtn" class="view-btn active">Cumulative View</button>
-          <button id="animationViewBtn" class="view-btn">Single Year View</button>
-        </div>
-      </div>
-      
-      <div class="sidebar-section">
-        <h3>Year Controls</h3>
-        
-        <div class="filter-group">
-          <div class="label flex-between">
-            <span>Year: <strong id="yearLabel">1925</strong></span>
-            <input id="specificYearInput" type="number" min="1925" max="2025" value="1925" class="year-input">
-          </div>
-          <div id="sliderWrap">
-            <div id="yearTickLabels" class="tick-labels"></div>
-            <div id="yearGuide" class="hidden"></div>
-            <div id="yearHistogram" class="histogram-container"></div>
-            <input id="yearSlider" type="range" min="1925" max="2025" value="1925" step="1" list="yearDatalist">
-            <datalist id="yearDatalist"></datalist>
-          </div>
-        </div>
-        
-        <div class="filter-group">
-          <label for="speedControl">Animation Speed:</label>
-          <select id="speedControl">
-            <option value="1000">Slow (0.5x)</option>
-            <option value="500" selected>Normal (1x)</option>
-            <option value="250">Fast (2x)</option>
-          </select>
-        </div>
-        
-        <div class="filter-group">
-          <button id="playBtn" aria-pressed="false">Play ▶</button>
-        </div>
-      </div>
-      
-      <div class="sidebar-section">
-        <h3>Filters</h3>
-          <div class="filter-group">
-            <label>Country Filter:</label>
-            <select id="countrySelect"><option value="">All Countries</option></select>
-          </div>
-          
-          <div class="filter-group">
-            <label>Magnitude Range:</label>
-            <div class="magnitude-range">
-              <div class="range-labels">
-                <span id="minMagLabel">7.0</span>
-                <span id="maxMagLabel">9.5</span>
-              </div>
-              <div class="range-inputs">
-                <input type="range" id="minMagSlider" min="7.0" max="9.5" step="0.1" value="7.0">
-                <input type="range" id="maxMagSlider" min="7.0" max="9.5" step="0.1" value="9.5">
-              </div>
-            </div>
-          </div>
-          
-          <div class="filter-group">
-            <button id="clearFiltersBtn">Clear All Filters</button>
-          </div>
-          
-          <div class="active-filters">
-            <div>Active Country: <strong id="activeCountryText">None</strong></div>
-            <div>Active Year: <strong id="activeYearText">None</strong></div>
-            <div>Magnitude Range: <strong id="activeMagText">7.0 - 9.5</strong></div>
-          </div>
-      </div>
-    `);
-    
-    // Re-attach event handlers after clearing
-    attachSidebarEventHandlers();
-    
-    // Reset magnitude selections to all selected
-    selectedMagnitudeRanges.clear();
-    const magnitudeRanges = [
-      { min: 7.0, max: 7.5, label: "7.0-7.4", description: "Major" },
-      { min: 7.5, max: 8.0, label: "7.5-7.9", description: "Great" },
-      { min: 8.0, max: 9.0, label: "8.0+", description: "Great (rare)" }
-    ];
-    magnitudeRanges.forEach(range => {
-      selectedMagnitudeRanges.add(`${range.min}-${range.max}`);
-    });
-    
-    // Update legend checkboxes to be checked
-    d3.selectAll('.legend-checkbox').property('checked', true);
-    d3.selectAll('.legend-item').classed('selected', true).classed('unselected', false);
-    
-    // Update earthquake visibility
-    updateEarthquakeVisibility();
-  }
 
   // Function to attach all sidebar event handlers
   function attachSidebarEventHandlers() {
@@ -1013,7 +1045,10 @@
       d3.select('#defaultViewBtn').classed('active', true);
       d3.select('#animationViewBtn').classed('active', false);
       d3.select('#playBtn').property('disabled', true);
-      drawYear(currentYear);
+      // Hide year controls and histogram in cumulative view
+      d3.select('#yearControlsSection').style('display', 'none');
+      d3.select('#histogramSection').style('display', 'none');
+  drawYear(currentYear);
     });
 
     d3.select('#animationViewBtn').on('click', function() {
@@ -1021,23 +1056,30 @@
       d3.select('#animationViewBtn').classed('active', true);
       d3.select('#defaultViewBtn').classed('active', false);
       d3.select('#playBtn').property('disabled', false);
+      // Show year controls and histogram in single year view
+      d3.select('#yearControlsSection').style('display', 'block');
+      d3.select('#histogramSection').style('display', 'block');
+      // Redraw histogram when section becomes visible
+      setTimeout(() => drawYearHistogram(), 100);
       drawYear(currentYear);
     });
 
     // Year slider handler
     if (slider.node()) {
-      slider.on("input", function() {
-        currentYear = +this.value;
-        yearLabel.text(currentYear);
+  slider.on("input", function() {
+    currentYear = +this.value;
+    yearLabel.text(currentYear);
         d3.select('#specificYearInput').property('value', currentYear);
-        drawYear(currentYear);
+    drawYear(currentYear);
       });
+    } else {
+      console.error('Slider element not found!');
     }
 
     // Year input handler
     d3.select('#specificYearInput').on('input', function() {
       const val = +this.value;
-      if (val >= 1925 && val <= 2025) {
+      if (val >= minYear && val <= maxYear) {
         activeSpecificYear = val;
         currentYear = val;
         yearLabel.text(currentYear);
@@ -1073,19 +1115,28 @@
 
     // Country filter
     d3.select('#countrySelect').on('change', () => {
-      activeCountry = d3.select('#countrySelect').property('value') || '';
-      d3.select('#activeCountryText').text(activeCountry || 'None');
-      highlightSelectedCountry(activeCountry);
-      populateSidebarForCountry(activeCountry);
-      drawYear(currentYear);
-    });
+    activeCountry = d3.select('#countrySelect').property('value') || '';
+    d3.select('#activeCountryText').text(activeCountry || 'None');
+    highlightSelectedCountry(activeCountry);
+    populateSidebarForCountry(activeCountry);
+    drawYear(currentYear);
+  });
+
+    // Country filter for the second select (in clearEarthquakeSelection)
+    d3.select('#countrySelect2').on('change', () => {
+    activeCountry = d3.select('#countrySelect2').property('value') || '';
+    d3.select('#activeCountryText').text(activeCountry || 'None');
+    highlightSelectedCountry(activeCountry);
+    populateSidebarForCountry(activeCountry);
+    drawYear(currentYear);
+  });
 
     // Magnitude range filters
     d3.select('#minMagSlider').on('input', function() {
       minMagFilter = +this.value;
       d3.select('#minMagLabel').text(minMagFilter.toFixed(1));
       d3.select('#activeMagText').text(`${minMagFilter.toFixed(1)} - ${maxMagFilter.toFixed(1)}`);
-      drawYear(currentYear);
+    drawYear(currentYear);
     });
 
     d3.select('#maxMagSlider').on('input', function() {
@@ -1096,27 +1147,29 @@
     });
 
     // Clear filters
-    d3.select('#clearFiltersBtn').on('click', () => {
-      activeCountry = '';
-      activeSpecificYear = null;
+  d3.select('#clearFiltersBtn').on('click', () => {
+    activeCountry = '';
+    activeSpecificYear = null;
       minMagFilter = 7.0;
       maxMagFilter = 9.5;
-      d3.select('#activeCountryText').text('None');
-      d3.select('#activeYearText').text('None');
+    d3.select('#activeCountryText').text('None');
+    d3.select('#activeYearText').text('None');
       d3.select('#activeMagText').text('7.0 - 9.5');
       d3.select('#countrySelect').property('value', '');
+      d3.select('#countrySelect2').property('value', '');
       d3.select('#specificYearInput').property('value', currentYear);
       d3.select('#minMagSlider').property('value', 7.0);
       d3.select('#maxMagSlider').property('value', 9.5);
       d3.select('#minMagLabel').text('7.0');
       d3.select('#maxMagLabel').text('9.5');
-      populateSidebarForCountry('');
-      if (selectedCountryPath) selectedCountryPath.attr('fill','white');
-      drawYear(currentYear);
-    });
+    populateSidebarForCountry('');
+    // Country layer removed - no need to reset country styling
+    drawYear(currentYear);
+  });
   }
 
   function drawYear(year) {
+    
     let list;
     
     if (viewMode === 'default') {
@@ -1137,57 +1190,127 @@
       list = list.filter(d => d.year === activeSpecificYear);
     }
     
+    
     // Apply magnitude range filter
     list = list.filter(d => d.mag >= minMagFilter && d.mag <= maxMagFilter);
+    
+    // Apply magnitude legend filtering
+    const beforeMagnitudeFilter = list.length;
+    list = list.filter(d => {
+      for (const rangeKey of selectedMagnitudeRanges) {
+        const [min, max] = rangeKey.split('-').map(Number);
+        if (d.mag >= min && d.mag <= max) { // Changed < to <= to include the upper bound
+          return true;
+        }
+      }
+      return false;
+    });
 
     // Update summary statistics
     updateSummaryStats(list);
 
-    // Create circles for all earthquakes in the list using D3 join pattern
-    const circles = quakeLayer.selectAll("circle")
-      .data(list, d => d.id)
-      .join("circle")
-        .attr("cx", d => projection([d.lon, d.lat])[0])
-        .attr("cy", d => projection([d.lon, d.lat])[1])
-        .attr("r", d => rScale(d.mag))
-        .attr("fill", d => getMagColor(d.mag))
-        .style("opacity", d => viewMode === 'default' ? getTemporalOpacity(d.year) : 1.0);
+    // Clear existing earthquake markers
+    earthquakeLayer.clearLayers();
+    
 
-    // Re-attach event handlers to the selection
-    circles.on("mouseenter", (e,d) => {
-        tooltip.style("display","block")
-          .html(`<strong>${d.place}</strong><br>Mag ${d.mag}<br>${d.timeISO}`);
-      })
-      .on("mousemove", function(e) {
-        tooltip.style("position", "fixed")
-               .style("left", (e.clientX + 5) + "px")
-               .style("top", (e.clientY + 5) + "px")
-               .style("z-index", "9999");
-      })
-      .on("mouseleave", () => tooltip.style("display","none"))
-      .on("click", (e,d) => {
-        displayEarthquakeInSidebar(d);
+    // Add new earthquake markers to Leaflet map
+    
+    // Check opacity distribution
+    const opacityStats = {};
+    list.forEach((d, index) => {
+      const opacity = viewMode === 'default' ? getTemporalOpacity(d.year) : 1.0;
+      
+      // Track opacity distribution
+      const opacityKey = Math.round(opacity * 10) / 10; // Round to 1 decimal
+      opacityStats[opacityKey] = (opacityStats[opacityKey] || 0) + 1;
+      
+    });
+    
+    // Now draw the earthquakes
+    list.forEach((d, index) => {
+      const opacity = viewMode === 'default' ? getTemporalOpacity(d.year) : 1.0;
+      
+      // Special handling for Valdivia earthquake to make it very visible
+      let finalRadius = rScale(d.mag);
+      let finalColor = getMagColor(d.mag);
+      let finalOpacity = opacity;
+      
+      if (d.place && d.place.includes('Valdivia')) {
+        finalRadius = Math.max(rScale(d.mag), 15); // Ensure minimum size
+        // Use normal magnitude color (purple for M9.5 = Extreme category)
+        // Don't override opacity - use the calculated temporal opacity
+      }
+      
+      const circle = L.circleMarker([d.lat, d.lon], {
+        radius: finalRadius,
+        color: finalColor,
+        fillColor: finalColor,
+        fillOpacity: finalOpacity,
+        weight: 2
+      }).addTo(earthquakeLayer);
+
+      // Add popup
+      circle.bindPopup(`
+        <strong>${d.place}</strong><br>
+        Magnitude: ${d.mag}<br>
+        Year: ${d.year}<br>
+        Country: ${d.country}
+      `);
+
+      // Add click handler for map interaction
+      circle.on('click', (e) => {
+        // No additional action needed
       });
+
+      // Add hover effects with smooth animation
+      circle.on('mouseover', (e) => {
+        // Store original radius for restoration
+        if (!circle._originalRadius) {
+          circle._originalRadius = finalRadius;
+        }
+        // Make circle bigger on hover (1.4x original size - 40% larger)
+        const hoverRadius = circle._originalRadius * 1.4;
+        circle.setRadius(hoverRadius);
+      });
+      
+      circle.on('mouseout', (e) => {
+        // Return to original size
+        if (circle._originalRadius) {
+          circle.setRadius(circle._originalRadius);
+        }
+      });
+
+    });
   }
 
   // Initialize year controls
-  let currentYear = 1925;
-  let slider, yearLabel;
   
-  // Initialize zoom button states
-  updateZoomButtons(1);
+  // Initialize zoom button states - removed since we're using inline onclick handlers
   
   // Create the magnitude legend
   createMagnitudeLegend();
+  
+  // Initialize year controls variables
+  let actualYears = Array.from(byYear.keys()).sort((a, b) => a - b);
+  let minYear = Math.min(...actualYears);
+  let maxYear = Math.max(...actualYears);
+  let currentYear = minYear;
+  let slider, yearLabel;
   
   // Initialize year controls after DOM is ready
   function initializeYearControls() {
     slider = d3.select("#yearSlider");
     yearLabel = d3.select("#yearLabel");
+    
     if (slider.node()) {
-      currentYear = +slider.node().value;
+      // Update slider attributes to match actual data range
+      slider.attr("min", minYear).attr("max", maxYear).attr("value", currentYear);
+      d3.select("#specificYearInput").attr("min", minYear).attr("max", maxYear).attr("value", currentYear);
       yearLabel.text(currentYear);
+      
       drawYear(currentYear);
+    } else {
+      console.error('Slider element not found!');
     }
   }
   
@@ -1197,64 +1320,27 @@
   // Initialize all event handlers
   attachSidebarEventHandlers();
 
-  // Zoom button event handlers
-  d3.select('#zoomInBtn').on('click', zoomIn);
-  d3.select('#zoomOutBtn').on('click', zoomOut);
-  d3.select('#resetZoomBtn').on('click', resetZoom);
-
-  // Legend toggle functionality
-  d3.select('#legendToggle').on('click', function() {
-    const legendSection = d3.select('#legendSection');
-    const toggle = d3.select('#legendToggle');
-    const isVisible = legendSection.style('display') !== 'none';
-    
-    if (isVisible) {
-      legendSection.style('display', 'none');
-      toggle.classed('expanded', false);
-    } else {
-      legendSection.style('display', 'block');
-      toggle.classed('expanded', true);
-    }
-  });
-
-  // Summary toggle functionality
-  d3.select('#summaryToggle').on('click', function() {
-    const summarySection = d3.select('#summarySection');
-    const toggle = d3.select('#summaryToggle');
-    const isVisible = summarySection.style('display') !== 'none';
-    
-    if (isVisible) {
-      summarySection.style('display', 'none');
-      toggle.classed('expanded', false);
-    } else {
-      summarySection.style('display', 'block');
-      toggle.classed('expanded', true);
-    }
-  });
-
-  // View mode button handlers
-  d3.select('#defaultViewBtn').on('click', function() {
-    viewMode = 'default';
-    d3.select('#defaultViewBtn').classed('active', true);
-    d3.select('#animationViewBtn').classed('active', false);
-    d3.select('#playBtn').property('disabled', true); // Disable Play button
-    drawYear(currentYear);
-  });
-
-  d3.select('#animationViewBtn').on('click', function() {
-    viewMode = 'animation';
-    d3.select('#animationViewBtn').classed('active', true);
-    d3.select('#defaultViewBtn').classed('active', false);
-    d3.select('#playBtn').property('disabled', false); // Enable Play button
-    drawYear(currentYear);
-  });
+  // Controls now use inline onclick handlers - no complex setup needed
 
   // Also disable it on initial load
   d3.select('#playBtn').property('disabled', true);
+  
+  // Add direct event listener for slider as backup
+  setTimeout(() => {
+    const sliderElement = document.getElementById('yearSlider');
+    if (sliderElement) {
+      sliderElement.addEventListener('input', function() {
+        currentYear = +this.value;
+        yearLabel.text(currentYear);
+        d3.select('#specificYearInput').property('value', currentYear);
+        drawYear(currentYear);
+      });
+    } else {
+      console.error('Slider element not found for direct listener');
+    }
+  }, 2000);
 
-  // Build 5-year tick labels under the slider
-  const minYear = +slider.attr("min");
-  const maxYear = +slider.attr("max");
+  // Build tick labels under the slider
   const tickContainer = d3.select("#yearTickLabels");
   const datalist = d3.select("#yearDatalist");
   // Add datalist options for better slider behavior
@@ -1284,122 +1370,217 @@
     }
   });
 
-  // Initialize sidebar with welcome message
-  const sidebarContent = d3.select("#sidebarList");
-  sidebarContent.append("div").html(`
-    <div class="welcome-message">
-      <h3>Welcome to the Earthquake Map</h3>
-      <p>Click on any earthquake circle to view detailed information.</p>
+  // Help modal event listeners
+  d3.select('#helpBtn').on('click', () => {
+    d3.select('#helpModal').style('display', 'block');
+  });
+  d3.select('#closeHelpBtn').on('click', () => {
+    d3.select('#helpModal').style('display', 'none');
+  });
+  
+  // Fallback event listeners using regular JavaScript
+  setTimeout(() => {
+    const helpBtn = document.getElementById('helpBtn');
+    const closeBtn = document.getElementById('closeHelpBtn');
+    const modal = document.getElementById('helpModal');
+    
+    if (helpBtn) {
+      helpBtn.addEventListener('click', () => {
+        if (modal) {
+          modal.style.display = 'block';
+        }
+      });
+    }
+    
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        if (modal) {
+          modal.style.display = 'none';
+        }
+      });
+    }
+    
+    // Close modal when clicking outside
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.style.display = 'none';
+        }
+      });
+    }
+    
+    // Modal is ready - no automatic opening
+  }, 1000);
+
+})();
+
+// Global functions for inline onclick handlers
+function toggleSummary() {
+  const summarySection = document.getElementById('summarySection');
+  const summaryToggle = document.getElementById('summaryToggle');
+  
+  if (summarySection && summaryToggle) {
+    if (summarySection.style.display === 'none') {
+      summarySection.style.display = 'block';
+      summaryToggle.classList.add('expanded');
+    } else {
+      summarySection.style.display = 'none';
+      summaryToggle.classList.remove('expanded');
+    }
+  }
+}
+
+function toggleTransparency() {
+  const transparencySection = document.getElementById('transparencySection');
+  const transparencyToggle = document.getElementById('transparencyToggle');
+  
+  if (transparencySection && transparencyToggle) {
+    if (transparencySection.style.display === 'none') {
+      transparencySection.style.display = 'block';
+      transparencyToggle.classList.add('expanded');
+    } else {
+      transparencySection.style.display = 'none';
+      transparencyToggle.classList.remove('expanded');
+    }
+  }
+}
+
+function toggleLegend() {
+  const legendSection = document.getElementById('legendSection');
+  const legendToggle = document.getElementById('legendToggle');
+  
+  if (legendSection && legendToggle) {
+    if (legendSection.style.display === 'none') {
+      legendSection.style.display = 'block';
+      legendToggle.classList.add('expanded');
+    } else {
+      legendSection.style.display = 'none';
+      legendToggle.classList.remove('expanded');
+    }
+  }
+}
+
+// Make map globally accessible
+window.map = map;
+
+</script>
+
+<div id="helpModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; overflow-y: auto;">
+  <div style="position: relative; max-width: 900px; margin: 20px auto; background: linear-gradient(180deg, rgba(6,34,74,0.95) 0%, rgba(42,11,74,0.95) 100%); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 30px; color: #e7f0ff;">
+    <button id="closeHelpBtn" style="position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; color: #e7f0ff; padding: 8px 12px; cursor: pointer; font-size: 14px;" onclick="document.getElementById('helpModal').style.display='none'">✕</button>
+    
+    <div class="visualization-legend">
+      <h2 style="margin: 0 0 30px 0; color: #fff; font-size: 24px; text-align: center;">How to Read This Map</h2>
       
-      <div style="margin-top: 20px;">
-        <h4>How to Use:</h4>
-        <ul style="text-align: left; margin: 10px 0;">
-          <li>Click earthquake circles for details</li>
-          <li>Use the year slider to filter by time</li>
-          <li>Click countries to filter by location</li>
-          <li>Use the legend to filter by magnitude</li>
-          <li>Toggle between "Cumulative View" and "Single Year View"</li>
-        </ul>
+      <div class="legend-section">
+        <h4>Earthquake Circles</h4>
+        <div class="legend-item">
+          <div class="legend-circle" style="width: 12px; height: 12px; background-color: #ffd54a; margin-right: 12px;"></div>
+          <div class="legend-text">
+            <strong>Size:</strong> Larger circles = higher magnitude<br>
+            <strong>Color:</strong> Yellow (7.0-7.4) → Orange (7.5-7.9) → Red (8.0+)
+          </div>
+        </div>
       </div>
       
-      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-        <h4>Data Information:</h4>
-        <p>This map shows earthquakes of magnitude 7.0+ from 1925 to 2025. The data comes from the U.S. Geological Survey (USGS).</p>
-        <p>Each circle represents an earthquake, with size indicating magnitude and color indicating the year of occurrence.</p>
+      <div class="legend-section">
+        <h4>Temporal Opacity (Cumulative View)</h4>
+        <div class="legend-item">
+          <div class="legend-circle" style="width: 12px; height: 12px; background-color: #ff3b30; opacity: 0.2; margin-right: 12px;"></div>
+          <div class="legend-text">
+            <strong>Older earthquakes (1925-1950):</strong> Very transparent
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="legend-circle" style="width: 12px; height: 12px; background-color: #ff3b30; opacity: 0.6; margin-right: 12px;"></div>
+          <div class="legend-text">
+            <strong>Middle years (1950-2000):</strong> Semi-transparent
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="legend-circle" style="width: 12px; height: 12px; background-color: #ff3b30; opacity: 1.0; margin-right: 12px;"></div>
+          <div class="legend-text">
+            <strong>Recent earthquakes (2000-2025):</strong> Fully opaque
+          </div>
+        </div>
       </div>
       
-      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-        <h4>Features:</h4>
-        <ul style="text-align: left; margin: 10px 0;">
-          <li>Interactive earthquake visualization</li>
-          <li>Real-time filtering and searching</li>
-          <li>Detailed earthquake information</li>
-          <li>Country-based analysis</li>
-          <li>Time-based animation</li>
-          <li>Magnitude-based filtering</li>
-          <li>Zoom and pan functionality</li>
-        </ul>
+      <div class="legend-section">
+        <h4>View Modes</h4>
+        <div class="legend-item">
+          <div class="legend-text">
+            <strong>Cumulative View:</strong> Shows all earthquakes with temporal opacity based on their age
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="legend-text">
+            <strong>Single Year View:</strong> Shows only earthquakes from the selected year
+          </div>
+        </div>
       </div>
       
-      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-        <h4>Legend Information:</h4>
-        <p>The magnitude legend shows different earthquake sizes. Hover over legend items to highlight earthquakes of that magnitude on the map.</p>
-        <p>Use the summary panel to see statistics about the current view, including total earthquakes, largest magnitude, and most active country.</p>
+      <div class="legend-section">
+        <h4>Interactive Controls</h4>
+        <div class="legend-item">
+          <div class="legend-text">
+            <strong>Year Slider:</strong> Navigate through time to see earthquakes by year<br>
+            <strong>Play Button:</strong> Animate through years automatically<br>
+            <strong>Magnitude Legend:</strong> Filter earthquakes by magnitude ranges<br>
+            <strong>Country Filter:</strong> Focus on specific regions or countries<br>
+            <strong>Magnitude Range Sliders:</strong> Set custom magnitude ranges
+          </div>
+        </div>
       </div>
       
-      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-        <h4>Controls:</h4>
-        <ul style="text-align: left; margin: 10px 0;">
-          <li>Year Slider: Navigate through time</li>
-          <li>Play Button: Animate through years</li>
-          <li>Speed Control: Adjust animation speed</li>
-          <li>Country Filter: Select specific countries</li>
-          <li>Year Filter: Filter by specific year</li>
-          <li>Clear Filters: Reset all filters</li>
-        </ul>
-      </div>
-      
-      <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-        <h4>Tips:</h4>
-        <ul style="text-align: left; margin: 10px 0;">
-          <li>Use mouse wheel to zoom in/out</li>
-          <li>Click and drag to pan around the map</li>
-          <li>Click earthquake circles for detailed information</li>
-          <li>Use the zoom controls for precise navigation</li>
-          <li>Toggle panels on/off as needed</li>
-        </ul>
-      </div>
-      
-      <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
-        <h4>Magnitude Scale:</h4>
-        <ul style="margin: 10px 0; padding-left: 20px;">
-          <li><strong>7.0-7.4:</strong> Major earthquake</li>
-          <li><strong>7.5-7.9:</strong> Great earthquake</li>
-          <li><strong>8.0+:</strong> Great earthquake (rare)</li>
-        </ul>
-      </div>
-      
-      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
-        <h4>Interactive Features:</h4>
-        <ul style="margin: 10px 0; padding-left: 20px;">
-          <li>Click any earthquake circle to see detailed information</li>
-          <li>Use the year slider to filter by time period</li>
-          <li>Click countries on the map to filter by location</li>
-          <li>Use the magnitude legend to filter by earthquake size</li>
-          <li>Toggle between "Cumulative View" and "Single Year View"</li>
-        </ul>
-      </div>
-      
-      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
-        <h4>Additional Tips:</h4>
-        <ul style="margin: 10px 0; padding-left: 20px;">
-          <li>Use the zoom controls for precise navigation</li>
-          <li>Try the year animation to see temporal patterns</li>
-          <li>Combine filters for specific analysis</li>
-          <li>Hover over circles for quick information</li>
-          <li>Use the clear button to reset all filters</li>
-        </ul>
-      </div>
-      
-      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
-        <h4>Data Sources:</h4>
-        <p>This visualization uses earthquake data from the U.S. Geological Survey (USGS) covering the period from 1925 to 2025. Only earthquakes with magnitude 7.0 and above are displayed.</p>
-      </div>
-      
-      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
-        <h4>Technical Details:</h4>
-        <p>The map uses D3.js for data visualization and interactive features. The projection is optimized for global earthquake visualization with proper scaling and positioning.</p>
-        <p>All earthquake data is processed in real-time to provide accurate filtering, clustering, and temporal analysis capabilities.</p>
-      </div>
-      
-      <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 6px;">
-        <h4>Performance Notes:</h4>
-        <p>This visualization is optimized for performance with large datasets. The interface includes clustering for better performance when viewing all earthquakes simultaneously.</p>
-        <p>Use the view mode controls to switch between cumulative and single-year views for optimal performance.</p>
+      <div class="legend-section">
+        <h4>Map Features</h4>
+        <div class="legend-item">
+          <div class="legend-text">
+            <strong>Click Earthquake Circles:</strong> View detailed information in the sidebar<br>
+            <strong>Summary Panel:</strong> Real-time statistics about visible earthquakes
+        </div>
       </div>
     </div>
-  `);
-})();
-</script>
+    
+      <div class="legend-section">
+        <h4>Data Information</h4>
+        <div class="legend-item">
+          <div class="legend-text">
+            <strong>Source:</strong> U.S. Geological Survey (USGS)<br>
+            <strong>Magnitude Range:</strong> 7.0 and above (major earthquakes)<br>
+            <strong>Time Period:</strong> 1925-2025<br>
+            <strong>Total Earthquakes:</strong> Over 1,200 major earthquakes worldwide
+          </div>
+        </div>
+      </div>
+      
+      <div class="legend-section">
+        <h4>Understanding Earthquake Patterns</h4>
+        <div class="legend-item">
+          <div class="legend-text">
+            <strong>Ring of Fire:</strong> Notice the concentration of earthquakes around the Pacific Ocean<br>
+            <strong>Tectonic Boundaries:</strong> Most earthquakes occur along plate boundaries<br>
+            <strong>Temporal Patterns:</strong> Use the year slider to see how earthquake activity changes over time<br>
+            <strong>Magnitude Distribution:</strong> Larger earthquakes are rarer but more destructive
+          </div>
+        </div>
+      </div>
+      
+      <div class="legend-section">
+        <h4>Tips for Exploration</h4>
+        <div class="legend-item">
+          <div class="legend-text">
+            <strong>Start with Cumulative View:</strong> See the big picture of earthquake distribution<br>
+            <strong>Use Single Year View:</strong> Focus on specific time periods<br>
+            <strong>Filter by Country:</strong> Explore regional earthquake patterns<br>
+            <strong>Try the Animation:</strong> Watch how earthquake activity changes over decades<br>
+            <strong>Check the Summary:</strong> Get quick statistics about your current view
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
